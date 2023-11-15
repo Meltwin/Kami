@@ -1,5 +1,5 @@
-#include "meshTree.hpp"
-#include "microstl.hpp"
+#include "kami/meshTree.hpp"
+#include "microstl/microstl.hpp"
 #include <chrono>
 #include <fstream>
 #include <iostream>
@@ -91,6 +91,8 @@ int main(int argc, char **argv) {
 
   // Load STL file
   microstl::MeshReaderHandler handler;
+  handler.forceNormals = false;
+  handler.disableNormals = false;
   std::cout << "Loading STL file" << std::endl;
   auto start_time = std::chrono::high_resolution_clock::now();
   if (microstl::Result result = loadSTL(handler, input_file);
@@ -120,7 +122,7 @@ int main(int argc, char **argv) {
   // Extract pattern
   std::cout << "Making Facet Pattern" << std::endl;
   start_time = std::chrono::high_resolution_clock::now();
-  auto figure = pool[0].getChildrenPatternSVGPaths(nullptr);
+  auto figure = pool[0].getChildrenPatternSVGPaths();
   end_time = std::chrono::high_resolution_clock::now();
   std::cout << "\tTook "
             << (end_time - start_time) / std::chrono::milliseconds(1) << " ms"

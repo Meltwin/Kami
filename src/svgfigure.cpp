@@ -1,4 +1,4 @@
-#include "svgfigure.hpp"
+#include "kami/svgfigure.hpp"
 #include <cmath>
 #include <sstream>
 
@@ -16,7 +16,7 @@ Bounds &Bounds::operator+=(const Bounds &other) {
   return *this;
 }
 
-std::string SVGPath::getAsString(float scale_factor) {
+std::string SVGPath::getAsString(double scale_factor) {
   std::stringstream ss;
 
   ss << TAG_START;
@@ -28,7 +28,7 @@ std::string SVGPath::getAsString(float scale_factor) {
   return ss.str();
 }
 
-std::string SVGFigure::tag_start(Bounds b, float scale_factor) {
+std::string SVGFigure::tag_start(Bounds b, double scale_factor) {
   std::stringstream ss;
   ss << "<svg width=\"" << (b.xmax - b.xmin) * scale_factor << "\"";
   ss << " height=\"" << (b.ymax - b.ymin) * scale_factor << "\"";
@@ -40,7 +40,7 @@ std::string SVGFigure::tag_start(Bounds b, float scale_factor) {
   return ss.str();
 }
 
-std::string SVGFigure::getAsString(float scale_factor) {
+std::string SVGFigure::getAsString(double scale_factor) {
   std::stringstream ss;
 
   ss << tag_start(getBounds(), scale_factor) << std::endl;

@@ -8,21 +8,21 @@
 namespace kami {
 
 struct Bounds {
-  float xmin, xmax;
-  float ymin, ymax;
+  double xmin, xmax;
+  double ymin, ymax;
 
   Bounds &operator+=(const Bounds &);
 };
 
 struct SVGPoint {
-  float x, y;
+  double x, y;
 };
 
 struct SVGPath : std::vector<SVGPoint> {
 public:
   SVGPath() : std::vector<SVGPoint>(0) {}
   SVGPath(unsigned long _size) : std::vector<SVGPoint>(_size) {}
-  std::string getAsString(float scale_factor);
+  std::string getAsString(double scale_factor);
   Bounds getBounds();
 
 private:
@@ -36,11 +36,11 @@ public:
   SVGFigure() : std::vector<SVGPath>(0) {}
   SVGFigure(unsigned long _size) : std::vector<SVGPath>(_size) {}
 
-  std::string getAsString(float scale_factor);
+  std::string getAsString(double scale_factor);
   Bounds getBounds();
 
 private:
-  static std::string tag_start(Bounds b, float scale_factor);
+  static std::string tag_start(Bounds b, double scale_factor);
   static constexpr char TAG_END[] = "</svg>";
 };
 
