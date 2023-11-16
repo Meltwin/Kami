@@ -36,21 +36,21 @@ typedef std::pair<microstl::Vertex, microstl::Vertex> VertexPair;
  * @brief Represent a facet and its link with the neighbours
  *
  */
-struct MeshFacet {
+struct LinkedMesh {
   microstl::Facet *facet = nullptr;
 
   ulong id;
 
   EdgeName parent_edge = NONE;
   bool ownF12 = false;
-  const MeshFacet *f12 = nullptr;
+  const LinkedMesh *f12 = nullptr;
   bool ownF23 = false;
-  const MeshFacet *f23 = nullptr;
+  const LinkedMesh *f23 = nullptr;
   bool ownF31 = false;
-  const MeshFacet *f31 = nullptr;
+  const LinkedMesh *f31 = nullptr;
 
-  MeshFacet() {}
-  MeshFacet(microstl::Facet *_facet, ulong _id) : facet(_facet), id(_id) {}
+  LinkedMesh() {}
+  LinkedMesh(microstl::Facet *_facet, ulong _id) : facet(_facet), id(_id) {}
 
   // ==========================================================================
   // Getters
@@ -61,7 +61,7 @@ struct MeshFacet {
    *
    * @return a pointer to the parent if exist, else nullptr
    */
-  inline const MeshFacet *getParent() const {
+  inline const LinkedMesh *getParent() const {
     switch (parent_edge) {
     case EDGE_12:
       return f12;
@@ -79,62 +79,71 @@ struct MeshFacet {
    *
    * @param name the edge we want the vertexes of
    */
-  VertexPair getEdgeVertex(EdgeName name) const;
+  inline VertexPair getEdgeVertex(EdgeName name) const {
+    switch (name) {
+    case EDGE_12:
+      return VertexPair{facet->v1, facet->v2};
+    case EDGE_23:
+      return VertexPair{facet->v2, facet->v3};
+    case EDGE_31:
+      return VertexPair{facet->v3, facet->v1};
+    default:
+      return VertexPair{facet->v1, facet->v2};
+    }
+  };
 
   /**
    * @brief Get the path for drawing this mesh
    *
    * @return a path object
    */
-  MeshPath getPath() const;
+  MeshPath getPath() const {
+    if (facet == nullptr)
+      return MeshPath(0);
+    return MeshPath{
+        Vec4{facet->v1.x, facet->v1.y, facet->v1.z, 1},
+        Vec4{facet->v2.x, facet->v2.y, facet->v2.z, 1},
+        Vec4{facet->v3.x, facet->v3.y, facet->v3.z, 1},
+    };
+  }
 
   // ==========================================================================
   // Maths
   // ==========================================================================
 
   /**
-   * @brief Get the euclidian distance between two vertex to the power of two.
+   * @brief Get the Normal vector of this facet
    *
-   * @param v1 the first vertex
-   * @param v2 the second vertex
-   * @return float the distance to the power of two
+   * @return an homogenous eigen vector
    */
-  static float vertexDistance2(const microstl::Vertex *v1,
-                               const microstl::Vertex *v2);
+  inline Vec4 getNormal4() const {
+    Vec4 vec4{facet->n.x, facet->n.y, facet->n.z, 1};
+    vec4.normalize();
+    return vec4;
+  }
 
   /**
-   * @brief Compute the euclidian distance between the two vertex
+   * @brief Get the Normal vector of the parent of this facet. If there is no
+   * parent, return the Z-axis vector.
    *
-   * @param v1 the first vertex
-   * @param v2 the second vertex
-   * @return float the distance
+   * @return an homogenous eigen vector
    */
-  static inline float vertexDistance(const microstl::Vertex *v1,
-                                     const microstl::Vertex *v2) {
-    return std::sqrt(vertexDistance2(v1, v2));
+  Vec4 getParentNormal4() const {
+    if (getParent() != nullptr)
+      return getParent()->getNormal4();
+    return Vec4{0, 0, 1 / std::sqrt(2), 1 / std::sqrt(2)};
   }
 
   /**
    * @brief Get the Normal vector of this facet
    *
-   * @return an homogenous eigen vector
-   */
-  Vec4 getNormal4() const;
-
-  /**
-   * @brief Get the Normal vector of the parent of this facet. If there is no
-   * parent, return the Z-axis vector.
-   *
-   * @return an homogenous eigen vector
-   */
-  Vec4 getParentNormal4() const;
-
-  /**
-   * @brief Get the Normal vector of this facet
-   *
    * @return Vec3 a eigen vector
    */
-  Vec3 getNormal3() const;
+  inline Vec3 getNormal3() const {
+    Vec3 vec3{facet->n.x, facet->n.y, facet->n.z};
+    vec3.normalize();
+    return vec3;
+  }
 
   /**
    * @brief Get the Normal vector of the parent of this facet. If there is no
@@ -142,7 +151,11 @@ struct MeshFacet {
    *
    * @return Vec3 a eigen vector
    */
-  Vec3 getParentNormal3() const;
+  Vec3 getParentNormal3() const {
+    if (getParent() != nullptr)
+      return getParent()->getNormal3();
+    return Vec3{0, 0, 1};
+  }
 
   /**
    * @brief Get the Edge directionnal vector for the given edge.
@@ -169,12 +182,12 @@ struct MeshFacet {
   Vec4 getEdgePosition(EdgeName edge) const;
 
   /**
-   * @brief Get the rotation matrix for a transformation between the two normals
-   * of this facets and its parent.
+   * @brief Get the rotation matrix for a transformation between the two
+   * normals of this facets and its parent.
    *
    * @return HMat a 4x4 homogenous eigen matrix representing this rotation
    */
-  HMat getHRotationMatrix() const;
+  math::HMat getHRotationMatrix() const;
 
   /**
    * @brief Compute the transformation matrix between the world and the given
@@ -182,7 +195,7 @@ struct MeshFacet {
    *
    * @return HMat a 4x4 homogenous eigen matrix representing this rotation.
    */
-  HMat getHTransform(EdgeName edge) const;
+  math::HMat getHTransform(EdgeName edge) const;
 
   /**
    * @brief Rotate a path list around the parent edge of the current facet.
@@ -202,7 +215,7 @@ struct MeshFacet {
    * @param pool the pool of facets of the STL file
    * @return std::vector<ulong> the index of the owned facets
    */
-  std::vector<ulong> linkNeighbours(std::vector<MeshFacet> &pool);
+  std::vector<ulong> linkNeighbours(std::vector<LinkedMesh> &pool);
 
   /**
    * @brief Test whether the caller has two common points with this facet.
@@ -215,7 +228,7 @@ struct MeshFacet {
    * @return true if the two facets are neighbours
    * @return false if they are not neighbours
    */
-  bool hasSamePoint(MeshFacet *parent_facet, EdgeName edge);
+  bool hasSamePoint(LinkedMesh *parent_facet, EdgeName edge);
 
   // ==========================================================================
   // STL Model Unfold + SVG Export
@@ -226,14 +239,14 @@ struct MeshFacet {
    *
    * @return the list of the path in the plane.
    */
-  PathList getChildrenInParentPlane() const;
+  PathList getChildrenInParentPlane(int max_depth, int depth) const;
 
   /**
    * @brief Get the Children Pattern S V G Paths object
    *
    * @return SVGFigure
    */
-  SVGFigure getChildrenPatternSVGPaths() const;
+  SVGFigure getChildrenPatternSVGPaths(int max_depth) const;
 };
 
 // ==========================================================================
@@ -244,10 +257,10 @@ struct MeshFacet {
  * @brief Represent a pool of facet that are possibly not linked together
  *
  */
-struct FacetPool : std::vector<MeshFacet> {
-  FacetPool(unsigned long _size)
-      : std::vector<MeshFacet>(std::vector<MeshFacet>(_size)) {}
-  FacetPool(microstl::Mesh &mesh);
+struct LinkedMeshPool : std::vector<LinkedMesh> {
+  LinkedMeshPool(unsigned long _size)
+      : std::vector<LinkedMesh>(std::vector<LinkedMesh>(_size)) {}
+  LinkedMeshPool(microstl::Mesh &mesh);
 
   /**
    * @brief Iterate over the facets to link them together.

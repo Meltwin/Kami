@@ -21,8 +21,7 @@ std::string SVGPath::getAsString(double scale_factor) {
 
   ss << TAG_START;
   for (SVGPoint &point : *this) {
-    ss << std::floor(point.x * scale_factor) << " "
-       << std::floor(point.y * scale_factor) << " ";
+    ss << point.x * scale_factor << " " << point.y * scale_factor << " ";
   }
   ss << TAG_END;
   return ss.str();

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            position: absolute;
+            margin: 0;
+            height: 100%;
+        }
+
+        body>div {
+            text-align: center;
+            padding-right: 1em;
+            padding-left: 1em;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-width: 32vw;
+            border-right: 1px solid black;
+        }
+
+        body>div>div:nth-child(1) {
+            flex: 1;
+            display: flex;
+        }
+
+        body>div>div>img {
+            width: 100%;
+        }
+
+        body>div>p {
+            flex: 0;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <div>
+        <div><img src="low_cube.svg" alt="low cube" /></div>
+        <div>
+            <p>Low poly cube</p>
+        </div>
+    </div>
+    <div>
+        <div><img src="low_pyramid8.svg" alt="low pyramid" /></div>
+        <div>
+            <p>Low poly pyramid</p>
+        </div>
+    </div>
+    <div>
+        <div><img src="low_disco.svg" alt="low discoball" /></div>
+        <p>Low disco balle</p>
+    </div>
+    <div>
+        <div><img src="low_cat.svg" alt="low cat" /></div>
+        <p>Low poly cat 1</p>
+    </div>
+    <div>
+        <div><img src="low_cat2.svg" alt="low cat 2" /></div>
+        <p>Low poly cat 2</p>
+    </div>
+    <div>
+        <div><img src="low_cat_scaled.svg" alt="low cat scaled" /></div>
+        <p>Low poly cat scaled</p>
+    </div>
+</body>
+
+</html>

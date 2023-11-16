@@ -1,4 +1,4 @@
-#include "kami/meshTree.hpp"
+#include "kami/linked_mesh.hpp"
 #include "microstl/microstl.hpp"
 #include <chrono>
 #include <fstream>
@@ -53,6 +53,18 @@ bool isRequestingHelp(int argc, char **argv) {
   return false;
 }
 
+int getMaxDepth(int argc, char **argv) {
+  bool takeNext = false;
+  for (int i = 0; i < argc; i++) {
+    if (takeNext)
+      return std::stoi(argv[i]);
+
+    if (strcmp(argv[i], "-d") == 0)
+      takeNext = true;
+  }
+  return -1;
+}
+
 void printHeader() {
   std::cout << " --- Kami, a paper pattern maker by Meltwin (2023) ---"
             << std::endl;
@@ -68,9 +80,8 @@ int main(int argc, char **argv) {
   const std::string input_file = getInputFile(argc, argv);
   const std::string output_file = getOutputFile(argc, argv);
   const float scale_factor = getScaleFactor(argc, argv);
+  const int max_depth = getMaxDepth(argc, argv);
   bool helpRequested = isRequestingHelp(argc, argv);
-
-  std::cout << "Scale factor: " << scale_factor << std::endl;
 
   if (helpRequested) {
     printHelp();
@@ -88,6 +99,8 @@ int main(int argc, char **argv) {
   }
 
   printHeader();
+  std::cout << "Scale factor: " << scale_factor << std::endl;
+  std::cout << "Max depth: " << max_depth << std::endl;
 
   // Load STL file
   microstl::MeshReaderHandler handler;
@@ -110,7 +123,7 @@ int main(int argc, char **argv) {
   // Transform to the facet pool and make internal links
   std::cout << "Making Facet Pool" << std::endl;
   start_time = std::chrono::high_resolution_clock::now();
-  kami::FacetPool pool(handler.mesh);
+  kami::LinkedMeshPool pool(handler.mesh);
   pool.makeFacetPoolInternalLink();
   end_time = std::chrono::high_resolution_clock::now();
   std::cout << "\tTook "
@@ -122,7 +135,7 @@ int main(int argc, char **argv) {
   // Extract pattern
   std::cout << "Making Facet Pattern" << std::endl;
   start_time = std::chrono::high_resolution_clock::now();
-  auto figure = pool[0].getChildrenPatternSVGPaths();
+  auto figure = pool[0].getChildrenPatternSVGPaths(max_depth);
   end_time = std::chrono::high_resolution_clock::now();
   std::cout << "\tTook "
             << (end_time - start_time) / std::chrono::milliseconds(1) << " ms"

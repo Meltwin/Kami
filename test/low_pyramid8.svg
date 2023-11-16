@@ -1,0 +1,10 @@
+<svg width="464" height="340" viewBox="-100 -100 464 340" xmlns="http://www.w3.org/2000/svg">
+<polygon points="0 0 0 100 100 0 " stroke="black" fill="transparent" stroke-width="1"/>
+<polygon points="0 0 -100 0 0 100 " stroke="black" fill="transparent" stroke-width="1"/>
+<polygon points="0 100 200 200 100 0 " stroke="black" fill="transparent" stroke-width="1"/>
+<polygon points="-20 240 200 200 2.22045e-14 100 " stroke="black" fill="transparent" stroke-width="1"/>
+<polygon points="100 2.22045e-14 200 200 240 -20 " stroke="black" fill="transparent" stroke-width="1"/>
+<polygon points="240 -20 200 200 364 48 " stroke="black" fill="transparent" stroke-width="1"/>
+<polygon points="0 0 100 0 0 -100 " stroke="black" fill="transparent" stroke-width="1"/>
+<polygon points="0 0 0 -100 -100 0 " stroke="black" fill="transparent" stroke-width="1"/>
+</svg>
