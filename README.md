@@ -1,10 +1,9 @@
 ***
-
-<h1 style="text-align: center"> Kami </h1> 
+<h1 align="center"> Kami </h1> 
 
 ***
 
-Kami is an application that aims to generation a 2D paper pattern from a 3D STL Mesh.
+Kami is an application that aims to generate a 2D paper pattern from a 3D STL Mesh.
 
 This program is licence under the [MIT Licence](./LICENCE) and is made by [Meltwin](https://github.com/Meltwin).
 
