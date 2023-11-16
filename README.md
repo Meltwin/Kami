@@ -46,5 +46,5 @@ $ ./kami -i <path of the stl file> -o <path for the outputted svg file>
 
 ## Dependencies
 
-This application depends on the library [MicroSTL](https://github.com/cry-inc/microstl) for loading STL files, and the library [Eigen3](https://gitlab.com/libeigen/eigen). Please make sure that the Eigen3 library is in the CMake import file so that it can finds the necessary dependencies.
+This application depends on the library [MicroSTL](https://github.com/cry-inc/microstl) for loading STL files, and the library [Eigen3](https://gitlab.com/libeigen/eigen) for all matrix-related computations. Please make sure that the Eigen3 library is in the CMake import path so that it can finds the necessary dependencies.
 
