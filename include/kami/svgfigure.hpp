@@ -7,6 +7,8 @@
 
 namespace kami {
 
+enum class SVGLineWidth { PERIMETER, INNER };
+
 struct Bounds {
   double xmin, xmax;
   double ymin, ymax;
@@ -22,13 +24,14 @@ struct SVGPath : std::vector<SVGPoint> {
 public:
   SVGPath() : std::vector<SVGPoint>(0) {}
   SVGPath(unsigned long _size) : std::vector<SVGPoint>(_size) {}
+  SVGPath(const std::vector<SVGPoint> &other) : std::vector<SVGPoint>(other) {}
   std::string getAsString(double scale_factor);
   Bounds getBounds();
 
 private:
   static constexpr char TAG_START[] = "<polygon points=\"";
   static constexpr char TAG_END[] =
-      "\" stroke=\"black\" fill=\"transparent\" stroke-width=\"1\"/>";
+      "\" stroke=\"black\" stroke-width=\"1\" fill=\"transparent\"/>";
 };
 
 struct SVGFigure : std::vector<SVGPath> {

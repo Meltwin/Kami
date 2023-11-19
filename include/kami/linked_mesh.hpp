@@ -15,46 +15,108 @@
 #include "kami/svgfigure.hpp"
 #include "microstl/microstl.hpp"
 #include <cmath>
+#include <ostream>
 #include <vector>
 
 namespace kami {
 
-constexpr float MAX_DISTANCE{1E-1};
-constexpr float MAX_DISTANCE2{MAX_DISTANCE * MAX_DISTANCE};
+struct UnfoldingData {
+  int max_depth = -1;
+  int depth = 0;
+};
 
 enum EdgeName { NONE, EDGE_12, EDGE_23, EDGE_31 };
-
-typedef std::vector<Vec4> MeshPath;
-typedef std::vector<MeshPath> PathList;
-typedef std::pair<microstl::Vertex, microstl::Vertex> VertexPair;
-
-// ==========================================================================
-// Facet description
-// ==========================================================================
+inline std::string edgeName(EdgeName edge) {
+  switch (edge) {
+  case NONE:
+    return "NONE";
+  case EDGE_12:
+    return "E12";
+  case EDGE_23:
+    return "E23";
+  case EDGE_31:
+    return "E31";
+  }
+}
+typedef std::pair<math::Vertex, math::Vertex> VertexPair;
 
 /**
  * @brief Represent a facet and its link with the neighbours
  *
  */
 struct LinkedMesh {
-  microstl::Facet *facet = nullptr;
+  struct LinkedEdge {
+    LinkedEdge(microstl::Vertex _v1, microstl::Vertex _v2) : v1(_v1), v2(_v2) {}
+    LinkedEdge() : v1(math::Vertex(0, 0, 0)), v2(math::Vertex(0, 0, 0)) {}
 
+    // Linking properties
+    bool owned = false;
+    LinkedMesh *mesh = nullptr;
+
+    // Vertexes
+    math::Vertex v1;
+    math::Vertex v2;
+
+    inline VertexPair pair() const { return VertexPair{v1, v2}; }
+    inline math::Vertex dir() const { return v1.directionTo(v2); }
+    inline math::Vertex pos() const {
+      return math::Vertex::barycenter({v1, v2});
+    }
+
+    inline bool sameAs(const VertexPair &pair) {
+      return ((v1.sameAs(pair.first) && v2.sameAs(pair.second)) ||
+              (v1.sameAs(pair.second) && v2.sameAs(pair.first)));
+    }
+
+    operator SVGPoint() const { return SVGPoint{v1(0), v1(1)}; };
+    friend std::ostream &operator<<(std::ostream &os, const LinkedEdge &edge) {
+      os << "Edge 1:[" << edge.v1(0) << ", " << edge.v1(1) << ", " << edge.v1(2)
+         << "], 2:[" << edge.v2(0) << ", " << edge.v2(1) << ", " << edge.v2(2)
+         << "]";
+      if (edge.mesh != nullptr) {
+        os << " ->" << ((edge.owned) ? " OWNING" : "") << " Mesh "
+           << edge.mesh->id << " on its " << edgeName(edge.mesh->parent_edge)
+           << " edge";
+      }
+
+      return os;
+    }
+
+    // Style
+    SVGLineWidth linewidth = SVGLineWidth::PERIMETER;
+  };
+  // ==========================================================================
+  // Facet description
+  // ==========================================================================
+  // Facet properties
   ulong id;
 
+  // Linking
   EdgeName parent_edge = NONE;
-  bool ownF12 = false;
-  const LinkedMesh *f12 = nullptr;
-  bool ownF23 = false;
-  const LinkedMesh *f23 = nullptr;
-  bool ownF31 = false;
-  const LinkedMesh *f31 = nullptr;
+  math::Vertex n;
+  LinkedEdge f12, f23, f31;
 
-  LinkedMesh() {}
-  LinkedMesh(microstl::Facet *_facet, ulong _id) : facet(_facet), id(_id) {}
+  // Flattening
+  math::HMat std_mat;
+  math::HMat flattening_coef;
+
+  LinkedMesh(microstl::Facet *facet, ulong _id);
+  LinkedMesh();
 
   // ==========================================================================
   // Getters
   // ==========================================================================
+
+  inline LinkedEdge getEdge(EdgeName edge) const {
+    switch (edge) {
+    case EDGE_23:
+      return f23;
+    case EDGE_31:
+      return f31;
+    default:
+      return f12;
+    }
+  }
 
   /**
    * @brief Get a pointer to the parent
@@ -64,98 +126,35 @@ struct LinkedMesh {
   inline const LinkedMesh *getParent() const {
     switch (parent_edge) {
     case EDGE_12:
-      return f12;
+      return f12.mesh;
     case EDGE_23:
-      return f23;
+      return f23.mesh;
     case EDGE_31:
-      return f31;
+      return f31.mesh;
     default:
       return nullptr;
     }
   }
+
+  // ==========================================================================
+  // Vertex utils
+  // ==========================================================================
 
   /**
    * @brief Return the vertex defining the given edge
    *
    * @param name the edge we want the vertexes of
    */
-  inline VertexPair getEdgeVertex(EdgeName name) const {
-    switch (name) {
-    case EDGE_12:
-      return VertexPair{facet->v1, facet->v2};
-    case EDGE_23:
-      return VertexPair{facet->v2, facet->v3};
-    case EDGE_31:
-      return VertexPair{facet->v3, facet->v1};
-    default:
-      return VertexPair{facet->v1, facet->v2};
-    }
+  VertexPair getEdgeVertex(EdgeName edge) const {
+    return getEdge(edge).pair();
   };
 
   /**
-   * @brief Get the path for drawing this mesh
-   *
-   * @return a path object
-   */
-  MeshPath getPath() const {
-    if (facet == nullptr)
-      return MeshPath(0);
-    return MeshPath{
-        Vec4{facet->v1.x, facet->v1.y, facet->v1.z, 1},
-        Vec4{facet->v2.x, facet->v2.y, facet->v2.z, 1},
-        Vec4{facet->v3.x, facet->v3.y, facet->v3.z, 1},
-    };
-  }
-
-  // ==========================================================================
-  // Maths
-  // ==========================================================================
-
-  /**
    * @brief Get the Normal vector of this facet
    *
    * @return an homogenous eigen vector
    */
-  inline Vec4 getNormal4() const {
-    Vec4 vec4{facet->n.x, facet->n.y, facet->n.z, 1};
-    vec4.normalize();
-    return vec4;
-  }
-
-  /**
-   * @brief Get the Normal vector of the parent of this facet. If there is no
-   * parent, return the Z-axis vector.
-   *
-   * @return an homogenous eigen vector
-   */
-  Vec4 getParentNormal4() const {
-    if (getParent() != nullptr)
-      return getParent()->getNormal4();
-    return Vec4{0, 0, 1 / std::sqrt(2), 1 / std::sqrt(2)};
-  }
-
-  /**
-   * @brief Get the Normal vector of this facet
-   *
-   * @return Vec3 a eigen vector
-   */
-  inline Vec3 getNormal3() const {
-    Vec3 vec3{facet->n.x, facet->n.y, facet->n.z};
-    vec3.normalize();
-    return vec3;
-  }
-
-  /**
-   * @brief Get the Normal vector of the parent of this facet. If there is no
-   * parent, return the Z-axis vector.
-   *
-   * @return Vec3 a eigen vector
-   */
-  Vec3 getParentNormal3() const {
-    if (getParent() != nullptr)
-      return getParent()->getNormal3();
-    return Vec3{0, 0, 1};
-  }
+  inline math::Vertex getNormal() const { return n; }
 
   /**
    * @brief Get the Edge directionnal vector for the given edge.
@@ -163,15 +162,9 @@ struct LinkedMesh {
    * @param edge the edge we will make the vector for
    * @return an homogenous eigen vector representing the edge direction
    */
-  Vec4 getEdgeDirection4(EdgeName edge) const;
-
-  /**
-   * @brief Get the Edge directionnal vector for the given edge.
-   *
-   * @param edge the edge we will make the vector for
-   * @return a eigen vector representing the edge direction
-   */
-  Vec3 getEdgeDirection3(EdgeName edge) const;
+  math::Vertex getEdgeDirection(EdgeName edge) const {
+    return getEdge(edge).dir();
+  };
 
   /**
    * @brief Get the Edge position in the world.
@@ -179,7 +172,31 @@ struct LinkedMesh {
    * @param edge the edge we will make the vector for
    * @return Vec3 a eigen vector representing the edge position
    */
-  Vec4 getEdgePosition(EdgeName edge) const;
+  math::Vertex getEdgePosition(EdgeName edge) const {
+    return getEdge(edge).pos();
+  };
+
+  /**
+   * @brief Get the Normal vector of the parent of this facet. If there is no
+   * parent, return the Z-axis vector.
+   *
+   * @return an homogenous eigen vector
+   */
+  math::Vertex getParentNormal() const {
+    if (getParent() != nullptr)
+      return getParent()->getNormal();
+    return math::Vertex{0, 0, 1 / std::sqrt(2), 1 / std::sqrt(2)};
+  }
+
+  const math::HMat getParentTrsf() const {
+    if (getParent() != nullptr)
+      return getParent()->flattening_coef;
+    return std_mat;
+  }
+
+  // ==========================================================================
+  // Transformations
+  // ==========================================================================
 
   /**
    * @brief Get the rotation matrix for a transformation between the two
@@ -198,11 +215,24 @@ struct LinkedMesh {
   math::HMat getHTransform(EdgeName edge) const;
 
   /**
-   * @brief Rotate a path list around the parent edge of the current facet.
+   * @brief Transform this mesh facet with the given homogenous matrix
    *
-   * @param list the list to rotate
+   * @param mat the homogenous matrix describing the transform
    */
-  PathList rotatePathList(PathList &list) const;
+  void rotate(const math::HMat &mat) {
+    f12.v1 = (Vec4)(mat * f12.v1);
+    f12.v2 = (Vec4)(mat * f12.v2);
+    f23.v1 = (Vec4)(mat * f23.v1);
+    f23.v2 = (Vec4)(mat * f23.v2);
+    f31.v1 = (Vec4)(mat * f31.v1);
+    f31.v2 = (Vec4)(mat * f31.v2);
+  }
+
+  /**
+   * @brief Compute recursively the transformation to put this face into the
+   * world plane and call this function on the owned children.
+   */
+  void unfoldMesh(ulong depth, ulong max_depth);
 
   // ==========================================================================
   // Linking logic
@@ -228,25 +258,34 @@ struct LinkedMesh {
    * @return true if the two facets are neighbours
    * @return false if they are not neighbours
    */
-  bool hasSamePoint(LinkedMesh *parent_facet, EdgeName edge);
+  bool hasSameEdge(LinkedMesh *parent_facet, EdgeName edge);
 
   // ==========================================================================
   // STL Model Unfold + SVG Export
   // ==========================================================================
 
-  /**
-   * @brief Get all the children path aligned in the plane of this facet.
-   *
-   * @return the list of the path in the plane.
-   */
-  PathList getChildrenInParentPlane(int max_depth, int depth) const;
+  SVGPath getSVGPath() const;
 
   /**
    * @brief Get the Children Pattern S V G Paths object
    *
-   * @return SVGFigure
    */
-  SVGFigure getChildrenPatternSVGPaths(int max_depth) const;
+  void getChildrenPatternSVGPaths(SVGFigure &figure, int depth = 0,
+                                  int max_depth = -1) const;
+
+  // ==========================================================================
+  // Debug
+  // ==========================================================================
+  friend std::ostream &operator<<(std::ostream &os, const LinkedMesh &mesh) {
+    os << "Mesh " << mesh.id << " : " << std::endl;
+    // if (mesh.f12.owned)
+    os << "  - f12 " << mesh.f12 << std::endl;
+    // if (mesh.f23.owned)
+    os << "  - f23 " << mesh.f23 << std::endl;
+    // if (mesh.f31.owned)
+    os << "  - f31 " << mesh.f31 << std::endl;
+    return os;
+  }
 };
 
 // ==========================================================================
@@ -272,11 +311,37 @@ struct LinkedMeshPool : std::vector<LinkedMesh> {
    */
   void makeFacetPoolInternalLink();
 
+  void unfold(ulong max_depth) { (*this)[root].unfoldMesh(0, max_depth); }
+
+  /**
+   * @brief Transform the current linked mesh pool into a figure
+   *
+   * @return SVGFigure
+   */
+  SVGFigure makeSVGFigure(int max_depth) {
+    SVGFigure figure(0);
+    (*this)[root].getChildrenPatternSVGPaths(figure, 0, max_depth);
+    return figure;
+  }
+
   /**
    * @brief Print useful informations about the pool. For debug purpose.
    *
    */
   void printInformations();
+
+  friend std::ostream &operator<<(std::ostream &os,
+                                  const LinkedMeshPool &pool) {
+    os << "Pool : " << std::endl;
+    for (const LinkedMesh &mesh : pool) {
+      os << mesh;
+    }
+    return os;
+  }
+
+private:
+  static constexpr ulong DEFAULT_ROOT{0};
+  ulong root = DEFAULT_ROOT;
 };
 
 } // namespace kami

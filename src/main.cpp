@@ -131,11 +131,12 @@ int main(int argc, char **argv) {
             << std::endl;
 
   pool.printInformations();
+  pool.unfold(max_depth);
 
   // Extract pattern
   std::cout << "Making Facet Pattern" << std::endl;
   start_time = std::chrono::high_resolution_clock::now();
-  auto figure = pool[0].getChildrenPatternSVGPaths(max_depth);
+  auto figure = pool.makeSVGFigure(max_depth);
   end_time = std::chrono::high_resolution_clock::now();
   std::cout << "\tTook "
             << (end_time - start_time) / std::chrono::milliseconds(1) << " ms"

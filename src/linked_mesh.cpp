@@ -8,77 +8,31 @@
 
 namespace kami {
 
+LinkedMesh::LinkedMesh(microstl::Facet *_facet, ulong _id)
+    : f12{_facet->v1, _facet->v2}, f23(_facet->v2, _facet->v3),
+      f31(_facet->v3, _facet->v1), n(_facet->n), id(_id) {
+  n.normalize();
+}
+
+LinkedMesh::LinkedMesh()
+    : n(math::Vertex(0, 0, 0)), f12(LinkedEdge()), f23(LinkedEdge()),
+      f31(LinkedEdge()) {}
+
 // ==========================================================================
 // Facet math functions
 // ==========================================================================
 
-Vec4 LinkedMesh::getEdgeDirection4(EdgeName edge) const {
-  Vec4 direction{0, 0, 0, 1};
-
-  // Getting the vertex
-  auto v12 = getEdgeVertex((edge != NONE) ? edge : EDGE_12);
-  auto v1 = v12.first;
-  auto v2 = v12.second;
-
-  // Computing the direction vector
-  direction(0) = v2.x - v1.x;
-  direction(1) = v2.y - v1.y;
-  direction(2) = v2.z - v1.z;
-
-  direction.normalize();
-
-  return direction;
-}
-
-Vec3 LinkedMesh::getEdgeDirection3(EdgeName edge) const {
-  Vec3 direction{0, 0, 0};
-
-  // Getting the vertex
-  auto v12 = getEdgeVertex((edge != NONE) ? edge : EDGE_12);
-  auto v1 = v12.first;
-  auto v2 = v12.second;
-
-  // Computing the direction vector
-  direction(0) = v2.x - v1.x;
-  direction(1) = v2.y - v1.y;
-  direction(2) = v2.z - v1.z;
-
-  direction.normalize();
-
-  return direction;
-}
-
-Vec4 LinkedMesh::getEdgePosition(EdgeName edge) const {
-  Vec4 vec{0, 0, 0, 1};
-
-  // Getting the vertex
-  auto v12 = getEdgeVertex((edge != NONE) ? edge : EDGE_12);
-  auto v1 = v12.first;
-  auto v2 = v12.second;
-
-  vec(0) = (v1.x + v2.x) / 2;
-  vec(1) = (v1.y + v2.y) / 2;
-  vec(2) = (v1.z + v2.z) / 2;
-
-  return vec;
-}
-
 math::HMat LinkedMesh::getHRotationMatrix() const {
   math::HMat mat;
 
-  // Get the rotation part
-  if (getParent() == nullptr) {
-    return mat;
-  }
-
   // Constructing parent frame
-  auto x_axis = getEdgeDirection3(parent_edge); // Edge direction == new X axis
-  auto new_n = getParentNormal3(); // Parent normal direction == new Z axis
+  Vec3 x_axis = getEdgeDirection(parent_edge); // Edge direction == new X axis
+  Vec3 new_n = getParentNormal(); // Parent normal direction == new Z axis
   Vec3 y_axis =
       new_n.cross(x_axis); // Y direction is the cross product of the other two
   y_axis.normalize();
 
-  auto old_n = getNormal3(); // Child normal direction (old Z axis)
+  Vec3 old_n = getNormal(); // Child normal direction (old Z axis)
 
   double theta = std::atan2(y_axis.dot(old_n), new_n.dot(old_n));
 
@@ -88,7 +42,7 @@ math::HMat LinkedMesh::getHRotationMatrix() const {
   mat(2, 1) = std::sin(theta);
   mat(2, 2) = std::cos(theta);
 
-  math::simplify(mat);
+  mat.simplify();
 
   return mat;
 }
@@ -96,23 +50,16 @@ math::HMat LinkedMesh::getHRotationMatrix() const {
 math::HMat LinkedMesh::getHTransform(EdgeName edge) const {
   math::HMat mat;
 
-  // Prevent computation if parent doesn't exist
-  if (getParent() == nullptr)
-    return mat;
-
   // Edge direction == new X axis
-  auto x_axis = getEdgeDirection3(parent_edge);
+  Vec3 x_axis = getEdgeDirection(parent_edge);
   mat.setRotXAsAxis(x_axis);
 
   // Parent normal direction == new Z axis
-  auto z_axis = getParentNormal3();
-  z_axis.normalize();
+  Vec3 z_axis = getParentNormal();
   mat.setRotZAsAxis(z_axis);
 
   // Y direction is the cross product of the other two
-  Vec3 y_axis = z_axis.cross(x_axis);
-  y_axis.normalize();
-  mat.setRotYAsAxis(y_axis);
+  mat.setRotYAsAxis(z_axis.cross(x_axis));
 
   // Translation part
   mat.setTransAsAxis(getEdgePosition(parent_edge));
@@ -120,98 +67,64 @@ math::HMat LinkedMesh::getHTransform(EdgeName edge) const {
   return mat;
 }
 
-PathList LinkedMesh::rotatePathList(PathList &list) const {
-  PathList out(0);
+void LinkedMesh::unfoldMesh(ulong depth, ulong max_depth) {
+  // If max depth, stop
+  if (max_depth != -1 && depth >= max_depth)
+    return;
 
-  // If there's no parent, stop there
-  if (parent_edge == NONE)
-    return list;
-
-  // Else rotate everything
+  // Get the cumulated transformation
   auto rot_mat = getHRotationMatrix();
   auto trsf_mat = getHTransform(parent_edge);
   auto inv_trsf_mat = trsf_mat.invert();
-  math::HMat coeff_mat = trsf_mat * (Mat4)(rot_mat * inv_trsf_mat);
+  flattening_coef = (Mat4)(getParentTrsf() * trsf_mat * rot_mat * inv_trsf_mat);
 
-  std::cout << std::endl << "Trsf" << std::endl << trsf_mat << std::endl;
-  std::cout << "Rot" << std::endl << rot_mat << std::endl;
-  std::cout << "Inv" << std::endl << inv_trsf_mat << std::endl;
-  std::cout << std::endl << coeff_mat << std::endl;
+  std::cout << id << std::endl << flattening_coef << std::endl;
 
-  for (MeshPath &path : list) {
-    MeshPath out_mesh(0);
-    for (ulong path_idx = 0; path_idx < path.size(); path_idx++) {
-      Vec4 new_position = coeff_mat * path[path_idx];
-      out_mesh.push_back(new_position);
-    }
-    out.push_back(out_mesh);
+  // Rotate this face
+  rotate(flattening_coef);
+
+  // Rotate children
+  if (f12.owned) {
+    f12.mesh->unfoldMesh(depth + 1, max_depth);
   }
-  return out;
+  if (f23.owned) {
+    f23.mesh->unfoldMesh(depth + 1, max_depth);
+  }
+  if (f31.owned) {
+    f31.mesh->unfoldMesh(depth + 1, max_depth);
+  }
 }
 
 // ==========================================================================
 // Facet Linking Logic
 // ==========================================================================
 
-bool LinkedMesh::hasSamePoint(LinkedMesh *parent_facet, EdgeName edge) {
+bool LinkedMesh::hasSameEdge(LinkedMesh *parent_facet, EdgeName edge) {
   // Get the vertex we want to find
-  const microstl::Vertex *v1, *v2;
-  switch (edge) {
-  case EDGE_12:
-    v1 = &(parent_facet->facet->v1);
-    v2 = &(parent_facet->facet->v2);
-    break;
-  case EDGE_23:
-    v1 = &(parent_facet->facet->v2);
-    v2 = &(parent_facet->facet->v3);
-    break;
-  case EDGE_31:
-    v1 = &(parent_facet->facet->v3);
-    v2 = &(parent_facet->facet->v1);
-    break;
-  case NONE:
-    return false;
-  }
+  auto pair = parent_facet->getEdgeVertex(edge);
 
   // Test if we have common vertex
-  if (math::distance2(v1, &this->facet->v1) < MAX_DISTANCE2) {
-    if (math::distance2(v2, &this->facet->v2) < MAX_DISTANCE2) {
-      this->f12 = parent_facet;
-      parent_edge = (parent_edge == NONE) ? EDGE_12 : parent_edge;
-      return true;
-    } else if (math::distance2(v2, &this->facet->v3) < MAX_DISTANCE2) {
-      this->f31 = parent_facet;
-      parent_edge = (parent_edge == NONE) ? EDGE_31 : parent_edge;
-      return true;
-    }
-  } else if (math::distance2(v1, &this->facet->v2) < MAX_DISTANCE2) {
-    if (math::distance2(v2, &this->facet->v1) < MAX_DISTANCE2) {
-      this->f12 = parent_facet;
-      parent_edge = (parent_edge == NONE) ? EDGE_12 : parent_edge;
-      return true;
-    } else if (math::distance2(v2, &this->facet->v3) < MAX_DISTANCE2) {
-      this->f23 = parent_facet;
-      parent_edge = (parent_edge == NONE) ? EDGE_23 : parent_edge;
-      return true;
-    }
-  } else if (math::distance2(v1, &this->facet->v3) < MAX_DISTANCE2) {
-    if (math::distance2(v2, &this->facet->v1) < MAX_DISTANCE2) {
-      this->f31 = parent_facet;
-      parent_edge = (parent_edge == NONE) ? EDGE_31 : parent_edge;
-      return true;
-    } else if (math::distance2(v2, &this->facet->v2) < MAX_DISTANCE2) {
-      this->f23 = parent_facet;
-      parent_edge = (parent_edge == NONE) ? EDGE_23 : parent_edge;
-      return true;
-    }
+  if (f12.sameAs(pair)) {
+    f12.mesh = parent_facet;
+    parent_edge = (parent_edge == NONE) ? EDGE_12 : parent_edge;
+    return true;
+  } else if (f23.sameAs(pair)) {
+    f23.mesh = parent_facet;
+    parent_edge = (parent_edge == NONE) ? EDGE_23 : parent_edge;
+    return true;
+  } else if (f31.sameAs(pair)) {
+    f31.mesh = parent_facet;
+    parent_edge = (parent_edge == NONE) ? EDGE_31 : parent_edge;
+    return true;
   }
 
   return false;
 }
 
 std::vector<ulong> LinkedMesh::linkNeighbours(std::vector<LinkedMesh> &pool) {
-  unsigned char done = ((f12 == nullptr) ? 0 : 1) | ((f23 == nullptr) ? 0 : 2) |
-                       ((f31 == nullptr) ? 0 : 4);
+  unsigned char done = ((f12.mesh == nullptr) ? 0 : 1) |
+                       ((f23.mesh == nullptr) ? 0 : 2) |
+                       ((f31.mesh == nullptr) ? 0 : 4);
   std::vector<ulong> created(0);
 
   for (ulong i = 0; i < pool.size(); i++) {
@@ -219,26 +132,26 @@ std::vector<ulong> LinkedMesh::linkNeighbours(std::vector<LinkedMesh> &pool) {
       continue;
 
     bool unlinked_facet = (pool[i].parent_edge == NONE);
-    if ((f12 == nullptr) && pool[i].hasSamePoint(this, EDGE_12)) {
+    if ((f12.mesh == nullptr) && pool[i].hasSameEdge(this, EDGE_12)) {
       if (unlinked_facet) {
-        ownF12 = true;
+        f12.owned = true;
         created.push_back(i);
       }
-      f12 = &pool[i];
+      f12.mesh = &pool[i];
       done |= 1;
-    } else if ((f23 == nullptr) && pool[i].hasSamePoint(this, EDGE_23)) {
+    } else if ((f23.mesh == nullptr) && pool[i].hasSameEdge(this, EDGE_23)) {
       if (unlinked_facet) {
-        ownF23 = true;
+        f23.owned = true;
         created.push_back(i);
       }
-      f23 = &pool[i];
+      f23.mesh = &pool[i];
       done |= 2;
-    } else if ((f31 == nullptr) && pool[i].hasSamePoint(this, EDGE_31)) {
+    } else if ((f31.mesh == nullptr) && pool[i].hasSameEdge(this, EDGE_31)) {
       if (unlinked_facet) {
-        ownF31 = true;
+        f31.owned = true;
         created.push_back(i);
       }
-      f31 = &pool[i];
+      f31.mesh = &pool[i];
       done |= 4;
     }
 
@@ -253,46 +166,25 @@ std::vector<ulong> LinkedMesh::linkNeighbours(std::vector<LinkedMesh> &pool) {
 // STL Model Unfold + SVG Export
 // ==========================================================================
 
-PathList LinkedMesh::getChildrenInParentPlane(int max_depth, int depth) const {
-  PathList list(0);
+SVGPath LinkedMesh::getSVGPath() const { return SVGPath({f12, f23, f31}); }
 
-  list.push_back(getPath());
+void LinkedMesh::getChildrenPatternSVGPaths(SVGFigure &figure, int depth,
+                                            int max_depth) const {
+  if (max_depth != -1 && depth >= max_depth)
+    return;
 
-  if (max_depth == -1 || depth < max_depth) {
-    if (ownF12) {
-      auto childs = f12->getChildrenInParentPlane(max_depth, depth + 1);
-      list.insert(list.end(), childs.begin(), childs.end());
-    }
-    if (ownF23) {
-      auto childs = f23->getChildrenInParentPlane(max_depth, depth + 1);
-      list.insert(list.end(), childs.begin(), childs.end());
-    }
-    if (ownF31) {
-      auto childs = f31->getChildrenInParentPlane(max_depth, depth + 1);
-      list.insert(list.end(), childs.begin(), childs.end());
-    }
-  }
+  std::cout << "Mesh " << id << std::endl;
+  std::cout << "\tF12 : " << f12 << std::endl;
+  std::cout << "\tF23 : " << f23 << std::endl;
+  std::cout << "\tF31 : " << f31 << std::endl;
 
-  list = rotatePathList(list);
-
-  return list;
-}
-
-SVGFigure LinkedMesh::getChildrenPatternSVGPaths(int max_depth) const {
-  SVGFigure figure(0);
-
-  auto list = getChildrenInParentPlane(max_depth, 0);
-  for (MeshPath &path : list) {
-    SVGPath svg_path(0);
-
-    for (Vec4 &point : path) {
-      svg_path.push_back(SVGPoint{point(0), point(1)});
-    }
-
-    figure.push_back(svg_path);
-  }
-
-  return figure;
+  figure.push_back(getSVGPath());
+  if (f12.owned)
+    f12.mesh->getChildrenPatternSVGPaths(figure, depth + 1, max_depth);
+  if (f23.owned)
+    f23.mesh->getChildrenPatternSVGPaths(figure, depth + 1, max_depth);
+  if (f31.owned)
+    f31.mesh->getChildrenPatternSVGPaths(figure, depth + 1, max_depth);
 }
 
 // ==========================================================================
@@ -301,8 +193,9 @@ SVGFigure LinkedMesh::getChildrenPatternSVGPaths(int max_depth) const {
 
 LinkedMeshPool::LinkedMeshPool(microstl::Mesh &mesh)
     : std::vector<LinkedMesh>(mesh.facets.size()) {
-  for (ulong i = 0; i < mesh.facets.size(); i++)
+  for (ulong i = 0; i < mesh.facets.size(); i++) {
     (*this)[i] = LinkedMesh(&mesh.facets[i], i);
+  }
 }
 
 void LinkedMeshPool::makeFacetPoolInternalLink() {
@@ -319,9 +212,10 @@ void LinkedMeshPool::printInformations() {
   int solo = 0;       // Get Number of solo facets
   int non_owning = 0; // Number of non owning facets
   for (LinkedMesh &facet : *this) {
-    if (facet.f12 == nullptr && facet.f23 == nullptr && facet.f31 == nullptr)
+    if (facet.f12.mesh == nullptr && facet.f23.mesh == nullptr &&
+        facet.f31.mesh == nullptr)
       solo++;
-    if (!facet.ownF12 && !facet.ownF23 && !facet.ownF31)
+    if (!facet.f12.owned && !facet.f23.owned && !facet.f31.owned)
       non_owning++;
   }
   std::cout << "Pool Informations" << std::endl;
