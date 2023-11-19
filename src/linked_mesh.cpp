@@ -10,7 +10,7 @@ namespace kami {
 
 LinkedMesh::LinkedMesh(microstl::Facet *_facet, ulong _id)
     : f12{_facet->v1, _facet->v2}, f23(_facet->v2, _facet->v3),
-      f31(_facet->v3, _facet->v1), n(_facet->n), id(_id) {
+      f31(_facet->v3, _facet->v1), n(_facet->n), uid(_id) {
   n.normalize();
 }
 
@@ -67,9 +67,9 @@ math::HMat LinkedMesh::getHTransform(EdgeName edge) const {
   return mat;
 }
 
-void LinkedMesh::unfoldMesh(ulong depth, ulong max_depth) {
+void LinkedMesh::unfoldMesh(long depth, long max_depth) {
   // If max depth, stop
-  if (max_depth != -1 && depth >= max_depth)
+  if (max_depth != NO_REC_LIMIT && depth >= max_depth)
     return;
 
   // Get the cumulated transformation
@@ -78,7 +78,7 @@ void LinkedMesh::unfoldMesh(ulong depth, ulong max_depth) {
   auto inv_trsf_mat = trsf_mat.invert();
   flattening_coef = (Mat4)(getParentTrsf() * trsf_mat * rot_mat * inv_trsf_mat);
 
-  std::cout << id << std::endl << flattening_coef << std::endl;
+  std::cout << uid << std::endl << flattening_coef << std::endl;
 
   // Rotate this face and normal
   rotate(flattening_coef);
@@ -129,7 +129,7 @@ std::vector<ulong> LinkedMesh::linkNeighbours(std::vector<LinkedMesh> &pool) {
   std::vector<ulong> created(0);
 
   for (ulong i = 0; i < pool.size(); i++) {
-    if (id == pool[i].id)
+    if (uid == pool[i].uid)
       continue;
 
     bool unlinked_facet = (pool[i].parent_edge == NONE);
@@ -169,15 +169,10 @@ std::vector<ulong> LinkedMesh::linkNeighbours(std::vector<LinkedMesh> &pool) {
 
 SVGPath LinkedMesh::getSVGPath() const { return SVGPath({f12, f23, f31}); }
 
-void LinkedMesh::getChildrenPatternSVGPaths(SVGFigure &figure, int depth,
-                                            int max_depth) const {
-  if (max_depth != -1 && depth >= max_depth)
+void LinkedMesh::getChildrenPatternSVGPaths(SVGFigure &figure, long depth,
+                                            long max_depth) const {
+  if (max_depth != NO_REC_LIMIT && depth >= max_depth)
     return;
-
-  std::cout << "Mesh " << id << std::endl;
-  std::cout << "\tF12 : " << f12 << std::endl;
-  std::cout << "\tF23 : " << f23 << std::endl;
-  std::cout << "\tF31 : " << f31 << std::endl;
 
   figure.push_back(getSVGPath());
   if (f12.owned)

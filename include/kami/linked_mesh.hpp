@@ -20,10 +20,7 @@
 
 namespace kami {
 
-struct UnfoldingData {
-  int max_depth = -1;
-  int depth = 0;
-};
+constexpr long NO_REC_LIMIT{-1};
 
 enum EdgeName { NONE, EDGE_12, EDGE_23, EDGE_31 };
 inline std::string edgeName(EdgeName edge) {
@@ -50,6 +47,7 @@ struct LinkedMesh {
   // Mesh edge
   // ==========================================================================
   struct LinkedEdge {
+
     // ==========================================================================
     // Edge description
     // ==========================================================================
@@ -57,7 +55,7 @@ struct LinkedMesh {
     bool owned = false;
     LinkedMesh *mesh = nullptr;
 
-    // Vertexes
+    // Vertices
     math::Vertex v1;
     math::Vertex v2;
 
@@ -70,12 +68,31 @@ struct LinkedMesh {
     // ==========================================================================
     // Utils for vertex computations
     // ==========================================================================
+
+    /**
+     * @brief Return a pair of the vertices defining this edge
+     */
     inline VertexPair pair() const { return VertexPair{v1, v2}; }
+
+    /**
+     * @brief Return a vector following the direction of the edge
+     */
     inline math::Vertex dir() const { return v1.directionTo(v2); }
+
+    /**
+     * @brief Return the center of the edge
+     */
     inline math::Vertex pos() const {
       return math::Vertex::barycenter({v1, v2});
     }
 
+    /**
+     * @brief Test whether the provided edge is equal to this edge.
+     *
+     * @param pair a pair of vertices defining the edge
+     * @return true if the edges correspond
+     * @return false if the edges are not the same
+     */
     inline bool sameAs(const VertexPair &pair) {
       return ((v1.sameAs(pair.first) && v2.sameAs(pair.second)) ||
               (v1.sameAs(pair.second) && v2.sameAs(pair.first)));
@@ -92,7 +109,7 @@ struct LinkedMesh {
          << "]";
       if (edge.mesh != nullptr) {
         os << " ->" << ((edge.owned) ? " OWNING" : "") << " Mesh "
-           << edge.mesh->id << " on its " << edgeName(edge.mesh->parent_edge)
+           << edge.mesh->uid << " on its " << edgeName(edge.mesh->parent_edge)
            << " edge";
       }
 
@@ -104,16 +121,16 @@ struct LinkedMesh {
   // Facet description
   // ==========================================================================
   // Facet properties
-  ulong id;
+  ulong uid; //< The UID if this facet
 
   // Linking
-  EdgeName parent_edge = NONE;
-  math::Vertex n;
-  LinkedEdge f12, f23, f31;
+  EdgeName parent_edge = NONE; //< Edge to the parent
+  math::Vertex n;              //< Normal of this facet
+  LinkedEdge f12, f23, f31;    //> Edges of this facet
 
   // Flattening
-  math::HMat std_mat;
-  math::HMat flattening_coef;
+  math::HMat std_mat;         //< Basic HMat for no transforms
+  math::HMat flattening_coef; //< HMat for transforming n to the world normal
 
   LinkedMesh(microstl::Facet *facet, ulong _id);
   LinkedMesh();
@@ -158,7 +175,7 @@ struct LinkedMesh {
   /**
    * @brief Return the vertex defining the given edge
    *
-   * @param name the edge we want the vertexes of
+   * @param name the edge we want the vertices of
    */
   VertexPair getEdgeVertex(EdgeName edge) const {
     return getEdge(edge).pair();
@@ -247,7 +264,7 @@ struct LinkedMesh {
    * @brief Compute recursively the transformation to put this face into the
    * world plane and call this function on the owned children.
    */
-  void unfoldMesh(ulong depth, ulong max_depth);
+  void unfoldMesh(long depth, long max_depth);
 
   // ==========================================================================
   // Linking logic
@@ -276,6 +293,10 @@ struct LinkedMesh {
   bool hasSameEdge(LinkedMesh *parent_facet, EdgeName edge);
 
   // ==========================================================================
+  // Sclicing logic
+  // ==========================================================================
+
+  // ==========================================================================
   // STL Model Unfold + SVG Export
   // ==========================================================================
 
@@ -285,14 +306,14 @@ struct LinkedMesh {
    * @brief Get the Children Pattern S V G Paths object
    *
    */
-  void getChildrenPatternSVGPaths(SVGFigure &figure, int depth = 0,
-                                  int max_depth = -1) const;
+  void getChildrenPatternSVGPaths(SVGFigure &figure, long depth = 0,
+                                  long max_depth = NO_REC_LIMIT) const;
 
   // ==========================================================================
   // Debug
   // ==========================================================================
   friend std::ostream &operator<<(std::ostream &os, const LinkedMesh &mesh) {
-    os << "Mesh " << mesh.id << " : " << std::endl;
+    os << "Mesh " << mesh.uid << " : " << std::endl;
     // if (mesh.f12.owned)
     os << "  - f12 " << mesh.f12 << std::endl;
     // if (mesh.f23.owned)
