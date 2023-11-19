@@ -45,10 +45,14 @@ typedef std::pair<math::Vertex, math::Vertex> VertexPair;
  *
  */
 struct LinkedMesh {
-  struct LinkedEdge {
-    LinkedEdge(microstl::Vertex _v1, microstl::Vertex _v2) : v1(_v1), v2(_v2) {}
-    LinkedEdge() : v1(math::Vertex(0, 0, 0)), v2(math::Vertex(0, 0, 0)) {}
 
+  // ==========================================================================
+  // Mesh edge
+  // ==========================================================================
+  struct LinkedEdge {
+    // ==========================================================================
+    // Edge description
+    // ==========================================================================
     // Linking properties
     bool owned = false;
     LinkedMesh *mesh = nullptr;
@@ -57,6 +61,15 @@ struct LinkedMesh {
     math::Vertex v1;
     math::Vertex v2;
 
+    // Style
+    SVGLineWidth linewidth = SVGLineWidth::PERIMETER;
+
+    LinkedEdge(microstl::Vertex _v1, microstl::Vertex _v2) : v1(_v1), v2(_v2) {}
+    LinkedEdge() : v1(math::Vertex(0, 0, 0)), v2(math::Vertex(0, 0, 0)) {}
+
+    // ==========================================================================
+    // Utils for vertex computations
+    // ==========================================================================
     inline VertexPair pair() const { return VertexPair{v1, v2}; }
     inline math::Vertex dir() const { return v1.directionTo(v2); }
     inline math::Vertex pos() const {
@@ -69,6 +82,10 @@ struct LinkedMesh {
     }
 
     operator SVGPoint() const { return SVGPoint{v1(0), v1(1)}; };
+
+    // ==========================================================================
+    // Debug for edge
+    // ==========================================================================
     friend std::ostream &operator<<(std::ostream &os, const LinkedEdge &edge) {
       os << "Edge 1:[" << edge.v1(0) << ", " << edge.v1(1) << ", " << edge.v1(2)
          << "], 2:[" << edge.v2(0) << ", " << edge.v2(1) << ", " << edge.v2(2)
@@ -81,10 +98,8 @@ struct LinkedMesh {
 
       return os;
     }
-
-    // Style
-    SVGLineWidth linewidth = SVGLineWidth::PERIMETER;
   };
+
   // ==========================================================================
   // Facet description
   // ==========================================================================
@@ -311,6 +326,12 @@ struct LinkedMeshPool : std::vector<LinkedMesh> {
    */
   void makeFacetPoolInternalLink();
 
+  /**
+   * @brief Unfold the whole pool, starting from the first element (the root of
+   * the linked mesh)
+   *
+   * @param max_depth the maximum of recursivity (-1 for no limit)
+   */
   void unfold(ulong max_depth) { (*this)[root].unfoldMesh(0, max_depth); }
 
   /**

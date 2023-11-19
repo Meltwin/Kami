@@ -80,8 +80,9 @@ void LinkedMesh::unfoldMesh(ulong depth, ulong max_depth) {
 
   std::cout << id << std::endl << flattening_coef << std::endl;
 
-  // Rotate this face
+  // Rotate this face and normal
   rotate(flattening_coef);
+  n = getParentNormal();
 
   // Rotate children
   if (f12.owned) {
