@@ -1,4 +1,5 @@
 #include "kami/linked_mesh.hpp"
+#include "kami/linked_pool.hpp"
 #include "microstl/microstl.hpp"
 #include <chrono>
 #include <fstream>
@@ -132,22 +133,21 @@ int main(int argc, char **argv) {
 
   pool.printInformations();
   pool.unfold(max_depth);
+  std::cout << pool << std::endl;
+  pool.slice();
 
   // Extract pattern
   std::cout << "Making Facet Pattern" << std::endl;
   start_time = std::chrono::high_resolution_clock::now();
-  auto figure = pool.makeSVGFigure(max_depth);
+  std::ofstream file(output_file, std::ios::out | std::ios::trunc);
+  if (file.is_open()) {
+    file << pool.getAsSVGString(max_depth, scale_factor);
+  }
+  file.close();
   end_time = std::chrono::high_resolution_clock::now();
   std::cout << "\tTook "
             << (end_time - start_time) / std::chrono::milliseconds(1) << " ms"
             << std::endl;
-
-  // Write into file
-  std::ofstream file(output_file, std::ios::out | std::ios::trunc);
-  if (file.is_open()) {
-    file << figure.getAsString(scale_factor);
-  }
-  file.close();
 
   return 0;
 }

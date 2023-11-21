@@ -13,8 +13,8 @@ This program works with several sequential steps:
 
 - Importing STL into a MicroSTL's **Mesh** object,
 - Linking the several facets into a **LinkedMeshPool** (containing the LinkedMesh),
-- Flattening the mesh to its 2D pattern using a **LinkedPlanPool** (containing the LinkedPlan). This step prevent any overlapping by cutting the pattern in multiple parts if needed.
-- Exporting the pattern into an SVG file.
+- The pool is the main component to interact with the newly linked mesh. It launch several steps: slicing, moving the different parts and exporting as a string SVG image.
+- Writing the SVG image to a file.
 
 ## Structure of the repository
 

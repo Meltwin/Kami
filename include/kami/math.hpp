@@ -7,6 +7,7 @@
 #include <eigen3/Eigen/src/Core/Matrix.h>
 #include <eigen3/Eigen/src/Core/Product.h>
 #include <iostream>
+#include <utility>
 
 // ==========================================================================
 // Type defining
@@ -22,7 +23,7 @@ namespace kami::math {
 // Constants
 // ==========================================================================
 
-constexpr double SIMPLIFICATION_THRESHOLD(1E-7);
+constexpr double SIMPLIFICATION_THRESHOLD(1E-6);
 constexpr double MAX_DISTANCE{1E-3};
 constexpr double MAX_DISTANCE2{MAX_DISTANCE * MAX_DISTANCE};
 
@@ -177,11 +178,22 @@ struct Vertex : public Vec4 {
    *
    * @param other the destination vertex
    */
-  Vertex directionTo(const Vertex &other) const {
+  Vertex directionTo(const Vertex &other, bool normalized = false) const {
     Vertex out{other(0) - (*this)(0), other(1) - (*this)(1),
                other(2) - (*this)(2)};
-    out.normalize();
+    if (normalized)
+      out.normalize();
     return out;
+  }
+
+  /**
+   * @brief Simplify the matrix by removing too small coefficient (<
+   * SIMPLIFICATION_THRESOLD)
+   */
+  void simplify() {
+    for (int i = 0; i < 4; i++)
+      (*this)(i) =
+          (std::fabs((*this)(i)) < SIMPLIFICATION_THRESHOLD) ? 0 : (*this)(i);
   }
 
   /**
@@ -217,8 +229,10 @@ struct Vertex : public Vec4 {
     return bary;
   }
 
-  operator Vec3() const { return {(*this)(0), (*this)(1), (*this)(2)}; }
+  operator Vec3() const { return Vec3{(*this)(0), (*this)(1), (*this)(2)}; }
 };
+
+typedef std::pair<Vertex, Vertex> VertexPair;
 
 } // namespace kami::math
 
