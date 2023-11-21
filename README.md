@@ -5,7 +5,7 @@
 
 Kami is an application that aims to generate a 2D paper pattern from a 3D STL Mesh.
 
-This program is licence under the [MIT Licence](./LICENCE) and is made by [Meltwin](https://github.com/Meltwin).
+This program is licenced under the [MIT Licence](./LICENCE) and is made by [Meltwin](https://github.com/Meltwin).
 
 ## Steps
 
