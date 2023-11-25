@@ -10,6 +10,8 @@
 
 namespace kami {
 
+constexpr double BOUNDS_PADDING{0.2f};
+
 // ==========================================================================
 // Mesh edge
 // ==========================================================================
@@ -26,6 +28,7 @@ template <typename T> struct LinkedEdge {
   // ==========================================================================
   // Linking properties
   bool owned = false;
+  bool cutted = false;
   T *mesh = nullptr;
 
   // Vertices
@@ -107,22 +110,29 @@ template <typename T> struct LinkedEdge {
    * @brief Get the bounds needed to display this edge
    */
   Bounds getBounds() const {
-    return Bounds{
+    auto b = Bounds{
         std::min(v1(0), v2(0)),
         std::max(v1(0), v2(0)),
         std::min(v1(1), v2(1)),
         std::max(v1(1), v2(1)),
     };
+
+    // Adding padding
+    b.xmin += ((b.xmin < 0) ? 1 : -1) * BOUNDS_PADDING * b.xmin;
+    b.xmax += ((b.xmax < 0) ? -1 : 1) * BOUNDS_PADDING * b.xmax;
+    b.ymin += ((b.ymin < 0) ? 1 : -1) * BOUNDS_PADDING * b.ymin;
+    b.ymax += ((b.ymax < 0) ? -1 : 1) * BOUNDS_PADDING * b.ymax;
+    return b;
   }
 
-  void getAsSVGLine(std::stringstream &stream, double scale_factor) const {
+  void getAsSVGLine(std::stringstream &stream) const {
     stream << "<line ";
-    stream << "x1=\"" << v1(0) * scale_factor << "\" ";
-    stream << "y1=\"" << v1(1) * scale_factor << "\" ";
-    stream << "x2=\"" << v2(0) * scale_factor << "\" ";
-    stream << "y2=\"" << v2(1) * scale_factor << "\" ";
+    stream << "x1=\"" << v1(0) << "\" ";
+    stream << "y1=\"" << v1(1) << "\" ";
+    stream << "x2=\"" << v2(0) << "\" ";
+    stream << "y2=\"" << v2(1) << "\" ";
     appendLineStyle(linestyle, stream);
-    stream << "/>";
+    stream << "/>\n";
   }
 
   // ==========================================================================

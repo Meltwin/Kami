@@ -1,0 +1,26 @@
+<svg width="2972.5" height="2102.5" xmlns="http://www.w3.org/2000/svg">
+<line x1="43.68" y1="12" x2="43.68" y2="22" stroke="black" stroke-width="1"/>
+<line x1="43.68" y1="22" x2="33.68" y2="12" stroke="black" stroke-width="1"/>
+<line x1="33.68" y1="12" x2="43.68" y2="12" stroke="black" stroke-width="1"/>
+<line x1="43.68" y1="12" x2="53.68" y2="12" stroke="black" stroke-width="3"/>
+<line x1="53.68" y1="12" x2="43.68" y2="22" stroke="black" stroke-width="3"/>
+<line x1="43.68" y1="22" x2="43.68" y2="12" stroke="black" stroke-width="1"/>
+<line x1="43.68" y1="22" x2="23.68" y2="32" stroke="black" stroke-width="1"/>
+<line x1="23.68" y1="32" x2="33.68" y2="12" stroke="black" stroke-width="1"/>
+<line x1="33.68" y1="12" x2="43.68" y2="22" stroke="black" stroke-width="1"/>
+<line x1="45.68" y1="36" x2="23.68" y2="32" stroke="black" stroke-width="3"/>
+<line x1="23.68" y1="32" x2="43.68" y2="22" stroke="black" stroke-width="1"/>
+<line x1="43.68" y1="22" x2="45.68" y2="36" stroke="black" stroke-width="3"/>
+<line x1="33.68" y1="12" x2="23.68" y2="32" stroke="black" stroke-width="1"/>
+<line x1="23.68" y1="32" x2="19.68" y2="10" stroke="black" stroke-width="1"/>
+<line x1="19.68" y1="10" x2="33.68" y2="12" stroke="black" stroke-width="3"/>
+<line x1="19.68" y1="10" x2="23.68" y2="32" stroke="black" stroke-width="1"/>
+<line x1="23.68" y1="32" x2="7.28" y2="16.8" stroke="black" stroke-width="3"/>
+<line x1="7.28" y1="16.8" x2="19.68" y2="10" stroke="black" stroke-width="3"/>
+<line x1="43.68" y1="12" x2="33.68" y2="12" stroke="black" stroke-width="1"/>
+<line x1="33.68" y1="12" x2="43.68" y2="2" stroke="black" stroke-width="3"/>
+<line x1="43.68" y1="2" x2="43.68" y2="12" stroke="black" stroke-width="1"/>
+<line x1="43.68" y1="12" x2="43.68" y2="2" stroke="black" stroke-width="1"/>
+<line x1="43.68" y1="2" x2="53.68" y2="12" stroke="black" stroke-width="3"/>
+<line x1="53.68" y1="12" x2="43.68" y2="12" stroke="black" stroke-width="3"/>
+</svg>

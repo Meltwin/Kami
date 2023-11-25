@@ -11,6 +11,7 @@
  * @copyright Copyright (c) Meltwin 2023, under MIT licence
  */
 
+#include "kami/bin_packing.hpp"
 #include "kami/bounds.hpp"
 #include "kami/display_settings.hpp"
 #include "kami/linked_edge.hpp"
@@ -76,7 +77,14 @@ struct ILinkedMesh {
   /**
    * @brief Get the bounds for displaying this facet
    */
-  virtual const Bounds getBounds() const = 0;
+  virtual const Bounds getBounds(bool recursive,
+                                 bool stop_on_cut = true) const = 0;
+
+  /**
+   * @brief Get the barycenter of the children of this facet and itself.
+   */
+  virtual const void getBarycenter(math::Barycenter &bary, bool recursive,
+                                   bool stop_on_cut = true) const = 0;
 
   // ==========================================================================
   // Vertex utils
@@ -166,6 +174,7 @@ struct ILinkedMesh {
    * @param mat the homogenous matrix describing the transform
    */
   virtual void transform(const math::HMat &mat, bool recusive = false,
+                         bool stop_on_cut = true,
                          SVGLineWidth style = SVGLineWidth::NONE) = 0;
 
   /**
@@ -210,9 +219,8 @@ struct ILinkedMesh {
    * the given distance.
    *
    * @param edge the edge which will be translated
-   * @param dist the distance that the edge will translated
    */
-  virtual void translateChildren(int edge, double dist) = 0;
+  virtual void translateChildren(int edge) = 0;
 
   /**
    * @brief Return the overlaps between this facets and the others
@@ -226,7 +234,8 @@ struct ILinkedMesh {
    * B overlapping with A) the parent should cut the mesh on one of the two
    * edges and displace the splitted part farther.
    */
-  virtual overlaps::MeshOverlaps sliceChildren(const LinkedPool &pool) = 0;
+  virtual overlaps::MeshOverlaps
+  sliceChildren(const LinkedPool &, std::vector<bin::Box<ILinkedMesh>> &) = 0;
 
   // ==========================================================================
   // STL Model Unfold + SVG Export
@@ -237,12 +246,12 @@ struct ILinkedMesh {
    * facet. This function is called recursively.
    *
    * @param stream the string stream to fill
+   * @param mat the transformation matrix to apply
    * @param depth the actual depth
    * @param max_depth the maximum depth
-   * @param scale_factor the factor to dilate the output
    */
-  virtual void fillSVGString(std::stringstream &stream, int depth,
-                             int max_depth, double scale_factor) const = 0;
+  virtual void fillSVGString(std::stringstream &stream, const math::HMat &mat,
+                             int depth, int max_depth) = 0;
 
   // ==========================================================================
   // Debug

@@ -1,6 +1,7 @@
 #ifndef KAMI_LINKED_POOL
 #define KAMI_LINKED_POOL
 
+#include "kami/bin_packing.hpp"
 #include "kami/bounds.hpp"
 #include "kami/linked_mesh.hpp"
 #include "kami/math.hpp"
@@ -42,17 +43,32 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<ILinkedMesh>> {
   /**
    * @brief Slice the children into part to prevent mesh overlapping
    */
-  void slice() { (*this)[root]->sliceChildren(*this); }
+  std::vector<bin::Bin<ILinkedMesh>> slice();
+
+  /**
+   * @brief Organise the boxes (parts of the figures) into several bins of the
+   * wanted size. Use the Touch Parameter (TP_RF) algorithm from the following
+   * paper:
+   *
+   * Andrea Lodi, Silvano Martello, Daniele Vigo, (1999) Heuristic and
+   * Metaheuristic Approaches for a Class of Two-Dimensional Bin Packing
+   * Problems. INFORMS Journal on Computing 11(4):345-357.
+   * https://doi.org/10.1287/ijoc.11.4.345
+   */
+  std::vector<bin::Bin<ILinkedMesh>>
+  binPackingAlgorithm(std::vector<bin::Box<ILinkedMesh>> &,
+                      const bin::BinFormat &);
 
   /**
    * @brief Get the bounds for the current linked mesh stored in this pool.
    */
-  Bounds getBounds() const;
+  Bounds getBounds() const { return (*this)[root]->getBounds(true, false); };
 
   /**
    * @brief Transform the current linked mesh pool into a SVG String
    */
-  std::string getAsSVGString(int max_depth, double scale_factor) const;
+  std::string getAsSVGString(bin::Bin<ILinkedMesh> &, int max_depth,
+                             double scale_factor) const;
 
   /**
    * @brief Print useful informations about the pool. For debug purpose.

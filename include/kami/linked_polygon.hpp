@@ -1,6 +1,7 @@
 #ifndef KAMI_LINKED_POLYGON
 #define KAMI_LINKED_POLYGON
 
+#include "kami/bin_packing.hpp"
 #include "kami/display_settings.hpp"
 #include "kami/linked_edge.hpp"
 #include "kami/linked_mesh.hpp"
@@ -50,11 +51,28 @@ template <int N> struct LinkedMesh : public ILinkedMesh {
     return nullptr;
   }
 
-  const Bounds getBounds() const override {
+  const Bounds getBounds(bool recursive,
+                         bool stop_on_cut = true) const override {
     Bounds b;
     for (int i = 0; i < N; i++)
       b += facets[i].getBounds();
+
+    if (recursive) {
+      for (int i = 0; i < N; i++) {
+        if ((facets[i].owned) && (!stop_on_cut || !facets[i].cutted))
+          b += facets[i].mesh->getBounds(recursive, stop_on_cut);
+      }
+    }
     return b;
+  };
+
+  const void getBarycenter(math::Barycenter &bary, bool recursive,
+                           bool stop_on_cut = true) const override {
+    for (int i = 0; i < N; i++) {
+      bary.addVertex(facets[i].v1);
+      if (recursive && facets[i].owned && (!stop_on_cut || !facets[i].cutted))
+        facets[i].mesh->getBarycenter(bary, recursive, stop_on_cut);
+    }
   };
 
   // ==========================================================================
@@ -62,6 +80,7 @@ template <int N> struct LinkedMesh : public ILinkedMesh {
   // ==========================================================================
 
   void transform(const math::HMat &mat, bool recusive = false,
+                 bool stop_on_cut = true,
                  SVGLineWidth style = SVGLineWidth::NONE) override {
     // Changing the style of the parent edge if needed
     if (style != SVGLineWidth::NONE) {
@@ -77,8 +96,8 @@ template <int N> struct LinkedMesh : public ILinkedMesh {
     // Transmit the transformation to the children
     if (recusive) {
       for (int i = 0; i < N; i++) {
-        if (facets[i].owned)
-          facets[i].mesh->transform(mat, recusive);
+        if (facets[i].owned && (!stop_on_cut || !facets[i].cutted))
+          facets[i].mesh->transform(mat, recusive, stop_on_cut);
       }
     }
   }
@@ -176,17 +195,12 @@ template <int N> struct LinkedMesh : public ILinkedMesh {
   // Sclicing logic
   // ==========================================================================
 
-  void translateChildren(int edge, double dist) override {
-    // Compute the matrix
-    Vec3 x_axis = getEdgeDirection(edge);
-    Vec3 z_axis = getNormal();
-    Vec3 y_axis = -z_axis.cross(x_axis);
-    y_axis.normalize();
-    y_axis = dist * x_axis.norm() * y_axis;
+  void translateChildren(int edge) override {
+    auto b = facets[edge].mesh->getBounds(true, true);
 
     math::HMat mat;
-    mat.setTransAsAxis(y_axis);
-    facets[edge].mesh->transform(mat, true, SVGLineWidth::CUTTED);
+    mat.setTransAsAxis(Vec3{-b.xmin, -b.ymin, 0});
+    facets[edge].mesh->transform(mat, true, true, SVGLineWidth::CUTTED);
   }
 
   overlaps::MeshOverlaps hasOverlaps(const LinkedPool &pool) override {
@@ -198,20 +212,11 @@ template <int N> struct LinkedMesh : public ILinkedMesh {
         continue;
 
       auto casted_elem = static_cast<LinkedMesh *>(mesh.get());
-
-      // Else
-      /*std::cout << "\t-------------------------" << mesh->uid
-                << "-------------------------" << std::endl;*/
       bool found = false;
       for (int th = 0; th < facets.size(); th++) {
         for (int oth = 0; oth < casted_elem->facets.size(); oth++) {
-          /*std::cout << "\tThis " << getEdgeName(th) << " / Other "
-                    << mesh->getEdgeName(oth) << " : ";*/
           auto params = LinkedEdge<ILinkedMesh>::findIntersect(
               facets[th], casted_elem->facets[oth]);
-
-          /*std::cout << "s=" << params.first << ", t=" << params.second
-                    << std::endl;*/
 
           if ((params.first >= MIN_DIST) && (params.first <= 1 - MIN_DIST) &&
               (params.second >= MIN_DIST) && (params.second <= 1 - MIN_DIST)) {
@@ -228,12 +233,14 @@ template <int N> struct LinkedMesh : public ILinkedMesh {
     return out;
   }
 
-  overlaps::MeshOverlaps sliceChildren(const LinkedPool &pool) override {
+  overlaps::MeshOverlaps
+  sliceChildren(const LinkedPool &pool,
+                std::vector<bin::Box<ILinkedMesh>> &boxes) override {
     // Populate overlaps
     std::vector<overlaps::MeshOverlaps> overlaps(N + 1);
     for (int i = 0; i < N; i++) {
       overlaps[i] = (facets[i].owned && facets[i].mesh != nullptr)
-                        ? facets[i].mesh->sliceChildren(pool)
+                        ? facets[i].mesh->sliceChildren(pool, boxes)
                         : overlaps::MeshOverlaps();
     }
     overlaps[N] = hasOverlaps(pool);
@@ -258,8 +265,13 @@ template <int N> struct LinkedMesh : public ILinkedMesh {
 
       // If the intersection is not null, cut it
       if (intersection.size() >= 1) {
-        translateChildren(i, 2);
+        translateChildren(i);
         facets[i].linestyle = SVGLineWidth::CUTTED;
+        facets[i].cutted = true;
+        boxes.push_back(bin::Box<ILinkedMesh>{
+            facets[i].mesh,
+            facets[i].mesh->getBounds(true, true),
+        });
         for (int k = 0; k < N; k++) {
           overlaps[k] = overlaps[k] - overlaps[i];
         }
@@ -280,21 +292,22 @@ template <int N> struct LinkedMesh : public ILinkedMesh {
   // STL Model Unfold + SVG Export
   // ==========================================================================
 
-  void fillSVGString(std::stringstream &stream, int depth, int max_depth,
-                     double scale_factor) const override {
+  void fillSVGString(std::stringstream &stream, const math::HMat &mat,
+                     int depth, int max_depth) override {
     if (max_depth != -1 && depth >= max_depth)
       return;
 
+    transform(mat);
+
     // Draw this facet
     for (int i = 0; i < N; i++) {
-      facets[i].getAsSVGLine(stream, scale_factor);
+      facets[i].getAsSVGLine(stream);
     }
 
     // Call the children
     for (int i = 0; i < N; i++) {
-      if (facets[i].owned) {
-        facets[i].mesh->fillSVGString(stream, depth + 1, max_depth,
-                                      scale_factor);
+      if (facets[i].owned && !facets[i].cutted) {
+        facets[i].mesh->fillSVGString(stream, mat, depth + 1, max_depth);
       }
     }
   };
