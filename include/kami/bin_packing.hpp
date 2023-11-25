@@ -4,6 +4,7 @@
 #include "kami/bounds.hpp"
 #include "kami/math.hpp"
 #include <algorithm>
+#include <ostream>
 #include <sstream>
 #include <vector>
 namespace kami::bin {
@@ -12,6 +13,11 @@ namespace kami::bin {
 
 struct BinFormat {
   double width, height;
+
+  friend std::ostream &operator<<(std::ostream &os, const BinFormat &format) {
+    os << "(" << format.width << ", " << format.height << ")";
+    return os;
+  }
 };
 
 // A Series sizes
@@ -220,6 +226,11 @@ template <typename T> struct Bin {
          << std::endl;
     }
     return ss.str();
+  }
+
+  friend std::ostream &operator<<(std::ostream &os, const Bin<T> &bin) {
+    os << "Bin " << bin.id << " " << bin.format;
+    return os;
   }
 };
 

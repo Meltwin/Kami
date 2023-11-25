@@ -16,7 +16,16 @@ inline void appHeader() {
 }
 
 inline void printHelp() {
-  std::cout << "Usage : kami -i <input file> -o <output file>" << std::endl;
+  std::cout << "Usage : kami -i <input file> -o <output file> [args]"
+            << std::endl;
+  std::cout << "Optional Arguments : " << std::endl;
+  std::cout << "\t-s: rescale the figure in the world." << std::endl;
+  std::cout
+      << "\t-f: change the resolution of the output (to get thinner lines)"
+      << std::endl;
+  std::cout << "\t-d: maximum recursive depth (for debug purposes)"
+            << std::endl;
+  std::cout << "\t-h: show this help" << std::endl;
 }
 
 constexpr char ARG_INPUT[]{"-i"};
