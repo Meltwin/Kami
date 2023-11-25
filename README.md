@@ -44,7 +44,14 @@ This application is a command line-based program. To run it, use the following c
 $ ./kami -i <path of the stl file> -o <path for the outputted svg file>
 ```
 
+Others arguments:
+
+- `-s`: the factor to scale the figure inside the export based on the mesh dimensions (e.g. if you input a mesh of a cube of edge 20mm, using here the argument `-s 2` will export the pattern for a cube of edge 40mm),
+- `-f`: a resolution factor for the export, mainly for setting the width of the lines,
+- `-d`: the maximum recursion depth, for debug purposes,
+- `-h`: for showing the command line help.
+
 ## Dependencies
 
-This application depends on the library [MicroSTL](https://github.com/cry-inc/microstl) for loading STL files, and the library [Eigen3](https://gitlab.com/libeigen/eigen) for all matrix-related computations. Please make sure that the Eigen3 library is in the CMake import path so that it can finds the necessary dependencies.
+This application depends on the library [MicroSTL](https://github.com/cry-inc/microstl) for loading STL files, and the library [Eigen3](https://gitlab.com/libeigen/eigen) for all matrix-related computations. Please make sure that the Eigen3 library is in the CMake import path so that it can finds the necessary dependencies when building it.
 

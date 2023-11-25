@@ -108,10 +108,21 @@ template <typename T> struct Box {
                         (y >= other.y + other.getHeight() - STHRES));
     return (!x_separated && !y_separated);
   }
+
+  friend std::ostream &operator<<(std::ostream &os, Box &box) {
+    os << " Box (" << box.x << ", " << box.y << ", ";
+    os << box.getWidth() << ", " << box.getHeight() << ") ";
+    return os;
+  }
 };
 
 struct Corner {
   double x = 0, y = 0;
+
+  friend std::ostream &operator<<(std::ostream &os, const Corner &c) {
+    os << "(" << c.x << ", " << c.y << ")";
+    return os;
+  }
 };
 
 template <typename T> struct Bin {
@@ -221,10 +232,8 @@ template <typename T> struct Bin {
   std::string printCornerVector() {
     std::stringstream ss;
     ulong index = 0;
-    for (Corner &c : corners) {
-      ss << "\t" << index++ << " -> (" << c.x << ", " << c.y << ")"
-         << std::endl;
-    }
+    for (Corner &c : corners)
+      ss << "\t" << index++ << " -> " << c << std::endl;
     return ss.str();
   }
 

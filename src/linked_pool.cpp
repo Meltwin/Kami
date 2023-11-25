@@ -10,7 +10,7 @@
 namespace kami {
 
 // ==========================================================================
-// Facet Pool Logic
+// Constructor
 // ==========================================================================
 
 LinkedMeshPool::LinkedMeshPool(microstl::Mesh &mesh)
@@ -19,6 +19,10 @@ LinkedMeshPool::LinkedMeshPool(microstl::Mesh &mesh)
     (*this)[i] = std::make_shared<LinkedTriangle>(&mesh.facets[i], i);
   }
 }
+
+// ==========================================================================
+// Linking
+// ==========================================================================
 
 void LinkedMeshPool::makeFacetPoolInternalLink() {
   ulong index = 0;
@@ -30,8 +34,12 @@ void LinkedMeshPool::makeFacetPoolInternalLink() {
   }
 }
 
-std::vector<bin::Bin<ILinkedMesh>> LinkedMeshPool::slice() {
-  std::vector<bin::Box<ILinkedMesh>> boxes;
+// ==========================================================================
+// Slicing
+// ==========================================================================
+
+MeshBinVector LinkedMeshPool::slice() {
+  MeshBoxVector boxes;
   (*this)[root]->sliceChildren(*this, boxes);
 
   // Adding the root to the list
@@ -40,8 +48,7 @@ std::vector<bin::Bin<ILinkedMesh>> LinkedMeshPool::slice() {
   math::HMat mat;
   mat.setTransAsAxis(Vec3{-b.xmin, -b.ymin, 0});
   (*this)[root]->transform(mat, true, true);
-  boxes.push_back(bin::Box<ILinkedMesh>((*this)[root].get(),
-                                        (*this)[root]->getBounds(true)));
+  boxes.push_back(MeshBox((*this)[root].get(), (*this)[root]->getBounds(true)));
 
   // Debug
   std::cout << "Got " << boxes.size() << " parts for this mesh" << std::endl;
@@ -51,18 +58,14 @@ std::vector<bin::Bin<ILinkedMesh>> LinkedMeshPool::slice() {
   }
 
   // Launch the bin packing
-  return binPackingAlgorithm(boxes, bin::PaperA<4>());
+  return binPackingAlgorithm(boxes);
 }
 
-std::vector<bin::Bin<ILinkedMesh>>
-LinkedMeshPool::binPackingAlgorithm(std::vector<bin::Box<ILinkedMesh>> &boxes,
-                                    const bin::BinFormat &format) {
+MeshBinVector LinkedMeshPool::binPackingAlgorithm(MeshBoxVector &boxes) {
   // Sorting the items by decreasing value
-  std::sort(boxes.begin(), boxes.end(),
-            [](bin::Box<ILinkedMesh> &elem1, bin::Box<ILinkedMesh> &elem2) {
-              return (elem1.height * elem1.width) >
-                     (elem2.width * elem2.height);
-            });
+  std::sort(boxes.begin(), boxes.end(), [](MeshBox &elem1, MeshBox &elem2) {
+    return (elem1.height * elem1.width) > (elem2.width * elem2.height);
+  });
 
   // Orient them horizontally
   for (auto &box : boxes) {
@@ -74,32 +77,33 @@ LinkedMeshPool::binPackingAlgorithm(std::vector<bin::Box<ILinkedMesh>> &boxes,
     }
   }
 
+  std::cout << "Using bin format " << format << std::endl;
+
   // PHASE 1: Compute the lower bound (number of bins to open)
   double L = 0;
   for (auto &box : boxes) {
     L += box.height * box.width;
   }
   int L0 = std::ceil(L / (format.height * format.width));
-  std::vector<bin::Bin<ILinkedMesh>> bins(L0, format);
+  MeshBinVector bins(L0, format);
 
   // PHASE 2: Packing the boxes
   for (auto &box : boxes) {
     double score = 0, temp_score = 0;
 
-    std::cout << "New box packing (" << box.width << ", " << box.height << ")"
-              << std::endl;
+    std::cout << "Packing " << box << std::endl;
 
     // Compute best position
     ulong best_bin = 0;
     ulong best_corner = 0;
     ulong best_rotated = false;
     for (ulong n_bin = 0; n_bin < bins.size(); n_bin++) {
-      std::cout << "Bin " << n_bin << " corners :" << std::endl;
+      std::cout << "\tBin " << n_bin << " corners :" << std::endl;
       for (ulong n_c = 0; n_c < bins[n_bin].corners.size(); n_c++) {
-        std::cout << "\t" << n_c << " -> (" << bins[n_bin].corners[n_c].x
-                  << ", " << bins[n_bin].corners[n_c].y << ") ";
+        std::cout << "\t\t" << n_c << " -> " << bins[n_bin].corners[n_c];
+
         // Test without rotation
-        std::cout << "NR(" << bins[n_bin].getScore(n_c, box, false) << ") ";
+        std::cout << " NR(" << bins[n_bin].getScore(n_c, box, false) << ") ";
         if (temp_score = bins[n_bin].getScore(n_c, box, false);
             temp_score > score) {
           best_bin = n_bin;
@@ -107,6 +111,7 @@ LinkedMeshPool::binPackingAlgorithm(std::vector<bin::Box<ILinkedMesh>> &boxes,
           score = temp_score;
           best_rotated = false;
         }
+
         // Test with rotation
         std::cout << "R(" << bins[n_bin].getScore(n_c, box, true) << ") "
                   << std::endl;
@@ -122,12 +127,12 @@ LinkedMeshPool::binPackingAlgorithm(std::vector<bin::Box<ILinkedMesh>> &boxes,
 
     // Put it in the box
     if (score > 0) {
-      std::cout << "Put the box in " << best_bin << " at " << best_corner
+      std::cout << "\tPut the box in " << best_bin << " at " << best_corner
                 << ((best_rotated) ? " [Rotated]" : " [Not Rotated]")
                 << " with score " << score << std::endl;
       bins[best_bin].putIn(best_corner, box, best_rotated);
     } else {
-      std::cout << "Put in a new box at " << best_corner
+      std::cout << "\tPut in a new box at " << best_corner
                 << ((best_rotated) ? " [Rotated]" : " [Not Rotated]")
                 << " with score " << score << std::endl;
       bins.push_back(bin::Bin<ILinkedMesh>(format));
@@ -138,8 +143,12 @@ LinkedMeshPool::binPackingAlgorithm(std::vector<bin::Box<ILinkedMesh>> &boxes,
   return bins;
 }
 
-std::string LinkedMeshPool::getAsSVGString(bin::Bin<ILinkedMesh> &bin,
-                                           int max_depth, double sf) const {
+// ==========================================================================
+// Exporting
+// ==========================================================================
+
+std::string LinkedMeshPool::getAsSVGString(MeshBin &bin, int max_depth,
+                                           double sf) const {
   std::stringstream ss;
   ss << "<svg width=\"" << sf * bin.format.width << "\"";
   ss << " height=\"" << sf * bin.format.height << "\"";
@@ -147,8 +156,7 @@ std::string LinkedMeshPool::getAsSVGString(bin::Bin<ILinkedMesh> &bin,
   for (auto &box : bin.boxes) {
     // Get translation + scaling transformation matrix
     math::HMat mat;
-    std::cout << "\tExporting box (" << box.x << ", " << box.y << ", "
-              << box.getWidth() << ", " << box.getHeight() << ")" << std::endl;
+    std::cout << "\t\tExporting " << box;
 
     // Rotation part
     mat(0, 0) = sf * ((box.rotated) ? 0 : 1);
@@ -161,17 +169,18 @@ std::string LinkedMeshPool::getAsSVGString(bin::Bin<ILinkedMesh> &bin,
     mat(0, 3) = sf * box.x;
     mat(1, 3) = sf * box.y;
 
-    std::cout << mat << std::endl;
-
     auto b = box.root->getBounds(true, true);
-    std::cout << "\tHas bound (" << b.xmin << ", " << b.xmax << ", " << b.ymin
-              << ", " << b.ymax << ")" << std::endl;
+    std::cout << " of " << b << std::endl;
 
     box.root->fillSVGString(ss, mat, 0, max_depth);
   }
   ss << "</svg>";
   return ss.str();
 }
+
+// ==========================================================================
+// Debug
+// ==========================================================================s
 
 void LinkedMeshPool::printInformations() const {
   int solo = 0;       // Get Number of solo facets

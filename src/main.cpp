@@ -58,17 +58,19 @@ int main(int argc, char **argv) {
   TIMED_SECTION("Unfolding the linked mesh", pool.unfold(args.max_depth));
   std::cout << pool << std::endl;
 
+  // Change the figure scale in the world
+  if (args.world_scaling != 1.f) {
+    TIMED_SECTION("Rescaling the mesh", pool.scaleFigure(args.world_scaling));
+  }
+
   // Slice the linked mesh in multiple parts
-  std::vector<kami::bin::Bin<kami::ILinkedMesh>> bins(
-      0, kami::bin::Bin<kami::ILinkedMesh>(kami::bin::PaperA<4>()));
+  kami::MeshBinVector bins(0, kami::MeshBin(kami::bin::PaperA<4>()));
   TIMED_SECTION("Slicing the linked mesh", bins = pool.slice());
 
-  std::cout << "Exporting " << bins.size() << " figure(s) as SVG" << std::endl;
-
   // Extract pattern
-  std::cout << "Making Facet Pattern" << std::endl;
+  std::cout << "Exporting " << bins.size() << " figure(s) as SVG" << std::endl;
   for (auto &bin : bins) {
-    std::cout << "Export bin " << bin << std::endl;
+    std::cout << "\tExport bin " << bin << std::endl;
     std::stringstream ss;
     ss << args.output << "_" << bin.id << ".svg";
 

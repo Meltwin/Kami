@@ -5,8 +5,14 @@
 #include "kami/bounds.hpp"
 #include "kami/linked_mesh.hpp"
 #include "kami/math.hpp"
+#include <vector>
 
 namespace kami {
+
+typedef bin::Bin<ILinkedMesh> MeshBin;
+typedef bin::Box<ILinkedMesh> MeshBox;
+typedef std::vector<MeshBin> MeshBinVector;
+typedef std::vector<MeshBox> MeshBoxVector;
 
 // ==========================================================================
 // Facets Pool
@@ -22,6 +28,10 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<ILinkedMesh>> {
             std::vector<std::shared_ptr<ILinkedMesh>>(_size)) {}
   LinkedMeshPool(microstl::Mesh &mesh);
 
+  // ==========================================================================
+  // Linking
+  // ==========================================================================
+
   /**
    * @brief Iterate over the facets to link them together.
    * Iterate over them in their order of linking (i.e. the first one to be
@@ -32,6 +42,10 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<ILinkedMesh>> {
    */
   void makeFacetPoolInternalLink();
 
+  // ==========================================================================
+  // Unfolding
+  // ==========================================================================
+
   /**
    * @brief Unfold the whole pool, starting from the first element (the root of
    * the linked mesh)
@@ -41,9 +55,38 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<ILinkedMesh>> {
   void unfold(ulong max_depth) { (*this)[root]->unfoldMesh(0, max_depth); }
 
   /**
-   * @brief Slice the children into part to prevent mesh overlapping
+   * @brief Rescale the figure into the world by the given factor.
+   *
+   * @param scaling_factor the scaling factor to apply
    */
-  std::vector<bin::Bin<ILinkedMesh>> slice();
+  void scaleFigure(double scaling_factor) {
+    math::HMat mat;
+    mat(0, 0) = scaling_factor;
+    mat(1, 1) = scaling_factor;
+    mat(2, 2) = scaling_factor;
+    (*this)[root]->transform(mat, true, false);
+  }
+
+  // ==========================================================================
+  // Slicing
+  // ==========================================================================
+
+  /**
+   * @brief Set the bin format for the slicing / exporting phases.
+   *
+   * @param _format the format of the bin (default is A4 paper)
+   */
+  void setBinFormat(bin::BinFormat &_format) { format = _format; }
+
+  /**
+   * @brief Slice the children into part to prevent mesh overlapping or parts
+   * being too big for the bin to contains.
+   */
+  MeshBinVector slice();
+
+  // ==========================================================================
+  // Exporting
+  // ==========================================================================
 
   /**
    * @brief Organise the boxes (parts of the figures) into several bins of the
@@ -55,24 +98,20 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<ILinkedMesh>> {
    * Problems. INFORMS Journal on Computing 11(4):345-357.
    * https://doi.org/10.1287/ijoc.11.4.345
    */
-  std::vector<bin::Bin<ILinkedMesh>>
-  binPackingAlgorithm(std::vector<bin::Box<ILinkedMesh>> &,
-                      const bin::BinFormat &);
+  MeshBinVector binPackingAlgorithm(MeshBoxVector &);
 
   /**
-   * @brief Get the bounds for the current linked mesh stored in this pool.
+   * @brief Transform the given bin into a SVG String
    */
-  Bounds getBounds() const { return (*this)[root]->getBounds(true, false); };
-
-  /**
-   * @brief Transform the current linked mesh pool into a SVG String
-   */
-  std::string getAsSVGString(bin::Bin<ILinkedMesh> &, int max_depth,
+  std::string getAsSVGString(MeshBin &, int max_depth,
                              double scale_factor) const;
+
+  // ==========================================================================
+  // Debug
+  // ==========================================================================
 
   /**
    * @brief Print useful informations about the pool. For debug purpose.
-   *
    */
   void printInformations() const;
 
@@ -86,6 +125,7 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<ILinkedMesh>> {
   }
 
 private:
+  bin::BinFormat format = bin::PaperA<4>();
   static constexpr ulong DEFAULT_ROOT{0};
   ulong root = DEFAULT_ROOT;
 };
