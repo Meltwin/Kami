@@ -10,7 +10,7 @@
 
 namespace kami {
 
-constexpr double BOUNDS_PADDING{0.2f};
+constexpr double BOUNDS_PADDING{0.0f};
 
 // ==========================================================================
 // Mesh edge

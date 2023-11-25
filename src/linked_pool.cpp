@@ -188,7 +188,9 @@ std::string LinkedMeshPool::getAsSVGString(MeshBin &bin,
     for (auto &c : bin.corners) {
       ss << "<circle cx=\"" << args.resolution * c.x << "\" cy=\""
          << args.resolution * c.y << "\" r=\"" << 2 * args.resolution
-         << "\" stroke=\"black\" stroke-width=\"3\" fill=\"blue\"/>\n";
+         << "\" stroke=\"" << c.getStrokeColor()
+         << "\" stroke-width=\"3\" fill=\"" << c.getFillColor()
+         << "\" fill-opacity=\"0.5\" stroke-opacity=\"0.5\"/>\n";
     }
   }
   ss << "</svg>";

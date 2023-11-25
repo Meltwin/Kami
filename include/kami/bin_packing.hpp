@@ -21,8 +21,8 @@ struct BinFormat {
 };
 
 // A Series sizes
-constexpr double A0_WIDTH{1189};
-constexpr double A0_HEIGHT{841};
+constexpr double A0_WIDTH{841};
+constexpr double A0_HEIGHT{1189};
 
 template <int N> struct PaperA : public BinFormat {
   PaperA() {
@@ -53,13 +53,13 @@ struct Edge {
     if ((e1.x1 == e2.x1) && (e1.x2 == e2.x2)) {
       double start = std::max(std::min(e1.y1, e1.y2), std::min(e2.y1, e2.y2));
       double end = std::min(std::max(e1.y1, e1.y2), std::max(e2.y1, e2.y2));
-      return (end - start);
+      return std::fabs(end - start);
     }
     // If the edges are on the same y axis
     else if ((e1.y1 == e2.y1) && (e1.y2 == e2.y2)) {
       double start = std::max(std::min(e1.x1, e1.x2), std::min(e2.x1, e2.x2));
       double end = std::min(std::max(e1.x1, e1.x2), std::max(e2.x1, e2.x2));
-      return (end - start);
+      return std::fabs(end - start);
     }
     return 0;
   }
@@ -116,8 +116,52 @@ template <typename T> struct Box {
   }
 };
 
+enum CornerType { C1, C2, CX, CY, CXY };
+
 struct Corner {
+  CornerType type;
   double x = 0, y = 0;
+
+  Corner() : x(0), y(0), type(C1){};
+  Corner(double _x, double _y, CornerType _type) : x(_x), y(_y), type(_type) {}
+  Corner(const Corner &other, CornerType _type)
+      : x(other.x), y(other.y), type(_type) {}
+
+  static bool compare(Corner c1, Corner c2) {
+    return (c1.y <= c2.y) ? (c1.x < c2.x) : false;
+  }
+
+  std::string getStrokeColor() const {
+    switch (type) {
+    case C1:
+      return "red";
+    case C2:
+      return "red";
+    case CX:
+      return "black";
+    case CY:
+      return "black";
+    case CXY:
+      return "black";
+    }
+    return "black";
+  }
+
+  std::string getFillColor() const {
+    switch (type) {
+    case C1:
+      return "blue";
+    case C2:
+      return "green";
+    case CX:
+      return "yellow";
+    case CY:
+      return "pink";
+    case CXY:
+      return "brown";
+    }
+    return "transparent";
+  }
 
   friend std::ostream &operator<<(std::ostream &os, const Corner &c) {
     os << "(" << c.x << ", " << c.y << ")";
@@ -154,7 +198,9 @@ template <typename T> struct Bin {
         (tempbox.y + tempbox.getHeight() > format.height))
       return -2;
 
-    // Check for the sides of the bin
+    // Check for the sides of the bin                6 -> (83.2461, 91.9319)
+    // NR(-22.7065) R(-22.7065)
+
     if (tempbox.x <= STHRES)
       cumulated += tempbox.getHeight();
     if (tempbox.y <= STHRES)
@@ -192,43 +238,80 @@ template <typename T> struct Bin {
     corners.resize(0);
     for (Box<T> &valid_box : boxes) {
       // Make corner 1 (bottom-right) and corner 2 (top-left)
-      auto c1 = Corner{valid_box.x + valid_box.getWidth(), valid_box.y};
-      auto c2 = Corner{valid_box.x, valid_box.y + valid_box.getHeight()};
+      auto c1 = Corner(valid_box.x + valid_box.getWidth(), valid_box.y, C1);
+      auto c2 = Corner(valid_box.x, valid_box.y + valid_box.getHeight(), C2);
 
-      bool c1_on_edge = false, c1_taken = false;
+      // And their projections
+      auto cx = Corner(c2, CX);
+      auto cy = Corner(c1, CY);
+
+      double saved_x = 0, saved_y = 0;
+      for (Box<T> &other : boxes) {
+        if (valid_box.id == other.id)
+          continue;
+
+        // For Cx
+        if ((other.y < cx.y) && (cx.y < other.y + other.getHeight())) {
+          saved_x = ((other.x + other.getWidth() > saved_x) &&
+                     (other.x + other.getWidth() <= cx.x))
+                        ? other.x + other.getWidth()
+                        : saved_x;
+        }
+
+        // For Cy
+        if ((other.x < cy.x) && (cy.x < other.x + other.getWidth())) {
+          saved_y = ((other.y + other.getHeight() > saved_y) &&
+                     (other.y + other.getHeight() <= cy.y))
+                        ? other.y + other.getHeight()
+                        : saved_y;
+        }
+      }
+      cx.x = saved_x;
+      cy.y = saved_y;
+
+      bool use_cx = !(cx.x == c2.x);
+      bool use_cy = !(cy.y == c1.y);
+
+      // Project corners
+      bool c1_on_another = false, c1_taken = false;
       bool c2_in_corner = false, c2_taken = false;
 
       // Test if corners are valid
+      c1_on_another = (c1.y == 0);
       c2_in_corner = (c2.x == 0);
       for (Box<T> &other : boxes) {
         if (valid_box.id == other.id)
           continue;
 
         // For C1
-        /*c1_on_edge =
-            c1_on_edge ||
-            ((std::fabs(c1.x - other.x + other.getWidth()) < STHRES) &&
-             (std::fabs(c1.y - other.y - other.getHeight()) > STHRES));*/
+        c1_on_another =
+            c1_on_another ||
+            ((c1.x > other.x) && (c1.x < other.x + other.getWidth()) &&
+             (std::fabs(c1.y - other.y - other.getHeight()) < STHRES));
         c1_taken = c1_taken || (std::fabs(c1.x - other.x) < STHRES &&
                                 std::fabs(c1.y - other.y) < STHRES);
 
         // For C2
-        c2_in_corner = c2_in_corner ||
-                       (std::fabs(c2.x - other.x - other.getWidth()) < STHRES);
+        c2_in_corner =
+            c2_in_corner ||
+            ((std::fabs(c2.x - other.x - other.getWidth()) < STHRES) &&
+             (c2.y > other.y) && (c2.y < other.y + other.getHeight()));
         c2_taken = c2_taken || (std::fabs(c2.x - other.x) < STHRES &&
                                 std::fabs(c2.y - other.y) < STHRES);
-
-        // Break if both points are invalid
-        if ((c1_on_edge || c1_taken) && c2_taken)
-          break;
       }
 
       // If they are, add them
-      if (!c1_on_edge && !c1_taken)
+      if (c1_on_another && !c1_taken)
         corners.push_back(c1);
       if (c2_in_corner && !c2_taken)
         corners.push_back(c2);
+      if (use_cx)
+        corners.push_back(cx);
+      if (use_cy)
+        corners.push_back(cy);
     }
+
+    std::sort(corners.begin(), corners.end(), Corner::compare);
   }
 
   std::string printCornerVector() {
