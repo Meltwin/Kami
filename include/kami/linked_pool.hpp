@@ -1,11 +1,13 @@
 #ifndef KAMI_LINKED_POOL
 #define KAMI_LINKED_POOL
 
+#include "kami/arguments.hpp"
 #include "kami/bin_packing.hpp"
 #include "kami/bounds.hpp"
 #include "kami/linked_mesh.hpp"
 #include "kami/math.hpp"
 #include <vector>
+
 
 namespace kami {
 
@@ -103,8 +105,7 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<ILinkedMesh>> {
   /**
    * @brief Transform the given bin into a SVG String
    */
-  std::string getAsSVGString(MeshBin &, int max_depth,
-                             double scale_factor) const;
+  std::string getAsSVGString(MeshBin &, const args::Args &args) const;
 
   // ==========================================================================
   // Debug

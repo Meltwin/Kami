@@ -76,7 +76,7 @@ int main(int argc, char **argv) {
 
     std::ofstream file(ss.str(), std::ios::out | std::ios::trunc);
     if (file.is_open()) {
-      file << pool.getAsSVGString(bin, args.max_depth, args.resolution);
+      file << pool.getAsSVGString(bin, args);
     }
     file.close();
   }

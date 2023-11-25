@@ -1,4 +1,5 @@
 #include "kami/linked_pool.hpp"
+#include "kami/arguments.hpp"
 #include "kami/bin_packing.hpp"
 #include "kami/bounds.hpp"
 #include "kami/linked_mesh.hpp"
@@ -147,11 +148,11 @@ MeshBinVector LinkedMeshPool::binPackingAlgorithm(MeshBoxVector &boxes) {
 // Exporting
 // ==========================================================================
 
-std::string LinkedMeshPool::getAsSVGString(MeshBin &bin, int max_depth,
-                                           double sf) const {
+std::string LinkedMeshPool::getAsSVGString(MeshBin &bin,
+                                           const args::Args &args) const {
   std::stringstream ss;
-  ss << "<svg width=\"" << sf * bin.format.width << "\"";
-  ss << " height=\"" << sf * bin.format.height << "\"";
+  ss << "<svg width=\"" << args.resolution * bin.format.width << "\"";
+  ss << " height=\"" << args.resolution * bin.format.height << "\"";
   ss << " xmlns=\"http://www.w3.org/2000/svg\">\n";
   for (auto &box : bin.boxes) {
     // Get translation + scaling transformation matrix
@@ -159,20 +160,36 @@ std::string LinkedMeshPool::getAsSVGString(MeshBin &bin, int max_depth,
     std::cout << "\t\tExporting " << box;
 
     // Rotation part
-    mat(0, 0) = sf * ((box.rotated) ? 0 : 1);
-    mat(0, 1) = sf * ((box.rotated) ? 1 : 0);
-    mat(1, 0) = sf * ((box.rotated) ? -1 : 0);
-    mat(1, 1) = sf * ((box.rotated) ? 0 : 1);
-    mat(2, 2) = sf;
+    mat(0, 0) = args.resolution * ((box.rotated) ? 0 : 1);
+    mat(0, 1) = args.resolution * ((box.rotated) ? 1 : 0);
+    mat(1, 0) = args.resolution * ((box.rotated) ? -1 : 0);
+    mat(1, 1) = args.resolution * ((box.rotated) ? 0 : 1);
+    mat(2, 2) = args.resolution;
 
     // Translation part
-    mat(0, 3) = sf * box.x;
-    mat(1, 3) = sf * box.y;
+    mat(0, 3) = args.resolution * box.x;
+    mat(1, 3) = args.resolution * box.y;
 
     auto b = box.root->getBounds(true, true);
     std::cout << " of " << b << std::endl;
 
-    box.root->fillSVGString(ss, mat, 0, max_depth);
+    box.root->fillSVGString(ss, mat, 0, args.max_depth);
+
+    if (args.svg_debug)
+      ss << "<rect x=\"" << args.resolution * box.x << "\" y=\""
+         << args.resolution * box.y << "\" width=\""
+         << args.resolution * box.getWidth() << "\" height=\""
+         << args.resolution * box.getHeight()
+         << "\" style=\"fill:transparent;stroke:red;stroke-width:5;\" />\n";
+  }
+
+  // If in svg debug, add the corners of the bin
+  if (args.svg_debug) {
+    for (auto &c : bin.corners) {
+      ss << "<circle cx=\"" << args.resolution * c.x << "\" cy=\""
+         << args.resolution * c.y << "\" r=\"" << 2 * args.resolution
+         << "\" stroke=\"black\" stroke-width=\"3\" fill=\"blue\"/>\n";
+    }
   }
   ss << "</svg>";
   return ss.str();

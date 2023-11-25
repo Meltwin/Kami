@@ -33,6 +33,7 @@ constexpr char ARG_OUTPUT[]{"-o"};
 constexpr char ARG_WORLD_SCALING[]{"-s"};
 constexpr char ARG_RESOLUTION[]{"-f"};
 constexpr char ARG_MAX_DEPTH[]{"-d"};
+constexpr char ARG_SVG_DEBUG[]{"-svgdbg"};
 constexpr char ARG_HELP[]{"-h"};
 
 enum class Arg { NONE, INPUT, OUTPUT, W_SCALING, RESOLUTION, MAX_DEPTH };
@@ -48,7 +49,9 @@ struct Args {
 
   // Debug
   int max_depth = -1;
+
   bool askHelp = false;
+  bool svg_debug = false;
 
   friend std::ostream &operator<<(std::ostream &os, Args &args) {
     os << "Parameters : " << std::endl;
@@ -121,6 +124,8 @@ inline Args getArguments(int argc, char **argv) {
       next = Arg::MAX_DEPTH;
     else if (strcmp(arg, ARG_HELP) == 0)
       args.askHelp = true;
+    else if (strcmp(arg, ARG_SVG_DEBUG) == 0)
+      args.svg_debug = true;
   }
   return args;
 }

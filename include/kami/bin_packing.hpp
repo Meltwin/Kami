@@ -190,12 +190,13 @@ template <typename T> struct Bin {
 
     // Recompute all corners
     corners.resize(0);
-    bool c1_on_edge = false, c1_taken = false;
-    bool c2_in_corner = false, c2_taken = false;
     for (Box<T> &valid_box : boxes) {
       // Make corner 1 (bottom-right) and corner 2 (top-left)
       auto c1 = Corner{valid_box.x + valid_box.getWidth(), valid_box.y};
       auto c2 = Corner{valid_box.x, valid_box.y + valid_box.getHeight()};
+
+      bool c1_on_edge = false, c1_taken = false;
+      bool c2_in_corner = false, c2_taken = false;
 
       // Test if corners are valid
       c2_in_corner = (c2.x == 0);
@@ -204,17 +205,18 @@ template <typename T> struct Bin {
           continue;
 
         // For C1
-        c1_on_edge = c1_on_edge ||
-                     ((std::fabs(c1.x - box.x + box.getWidth()) < STHRES) &&
-                      (std::fabs(c1.y - box.y - box.getHeight()) > STHRES));
-        c1_taken = c1_taken || (std::fabs(c1.x - box.x) < STHRES &&
-                                std::fabs(c1.y - box.y) < STHRES);
+        /*c1_on_edge =
+            c1_on_edge ||
+            ((std::fabs(c1.x - other.x + other.getWidth()) < STHRES) &&
+             (std::fabs(c1.y - other.y - other.getHeight()) > STHRES));*/
+        c1_taken = c1_taken || (std::fabs(c1.x - other.x) < STHRES &&
+                                std::fabs(c1.y - other.y) < STHRES);
 
         // For C2
-        c2_in_corner =
-            c2_in_corner || (std::fabs(c2.x - box.x - box.getWidth()) < STHRES);
-        c2_taken = c2_taken || (std::fabs(c2.x - box.x) < STHRES &&
-                                std::fabs(c2.y - box.y) < STHRES);
+        c2_in_corner = c2_in_corner ||
+                       (std::fabs(c2.x - other.x - other.getWidth()) < STHRES);
+        c2_taken = c2_taken || (std::fabs(c2.x - other.x) < STHRES &&
+                                std::fabs(c2.y - other.y) < STHRES);
 
         // Break if both points are invalid
         if ((c1_on_edge || c1_taken) && c2_taken)
