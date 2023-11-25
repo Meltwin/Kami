@@ -42,19 +42,19 @@ MeshBinVector LinkedMeshPool::slice() {
   MeshBoxVector boxes;
   (*this)[root]->sliceChildren(*this, boxes);
 
-  // Adding the root to the list
+  // Transforming the root
   auto b = (*this)[root]->getBounds(true, true);
-
   math::HMat mat;
   mat.setTransAsAxis(Vec3{-b.xmin, -b.ymin, 0});
   (*this)[root]->transform(mat, true, true);
+
+  // Adding the root to the list
   boxes.push_back(MeshBox((*this)[root].get(), (*this)[root]->getBounds(true)));
 
   // Debug
   std::cout << "Got " << boxes.size() << " parts for this mesh" << std::endl;
   for (auto &b : boxes) {
-    std::cout << "\tBox(" << b.x << ", " << b.y << ", " << b.getWidth() << ", "
-              << b.getHeight() << ")" << std::endl;
+    std::cout << "\t" << b << std::endl;
   }
 
   // Launch the bin packing
@@ -98,7 +98,7 @@ MeshBinVector LinkedMeshPool::binPackingAlgorithm(MeshBoxVector &boxes) {
     ulong best_corner = 0;
     ulong best_rotated = false;
     for (ulong n_bin = 0; n_bin < bins.size(); n_bin++) {
-      std::cout << "\tBin " << n_bin << " corners :" << std::endl;
+      std::cout << "\tBin " << n_bin + 1 << " corners :" << std::endl;
       for (ulong n_c = 0; n_c < bins[n_bin].corners.size(); n_c++) {
         std::cout << "\t\t" << n_c << " -> " << bins[n_bin].corners[n_c];
 

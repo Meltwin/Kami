@@ -110,12 +110,8 @@ template <typename T> struct LinkedEdge {
    * @brief Get the bounds needed to display this edge
    */
   Bounds getBounds() const {
-    auto b = Bounds{
-        std::min(v1(0), v2(0)),
-        std::max(v1(0), v2(0)),
-        std::min(v1(1), v2(1)),
-        std::max(v1(1), v2(1)),
-    };
+    auto b = Bounds(std::min(v1(0), v2(0)), std::max(v1(0), v2(0)),
+                    std::min(v1(1), v2(1)), std::max(v1(1), v2(1)));
 
     // Adding padding
     b.xmin += ((b.xmin < 0) ? 1 : -1) * BOUNDS_PADDING * b.xmin;
