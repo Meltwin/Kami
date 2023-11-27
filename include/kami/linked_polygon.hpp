@@ -115,7 +115,7 @@ template <int N> struct LinkedMesh : public ILinkedMesh {
     unfold_coef = (Mat4)(getParentTrsf() * trsf_mat * rot_mat * inv_trsf_mat);
 
     // Rotate this face and normal
-    transform(unfold_coef);
+    transform(unfold_coef, false, false);
 
     // Rotate children
     for (int i = 0; i < N; i++) {
@@ -123,16 +123,11 @@ template <int N> struct LinkedMesh : public ILinkedMesh {
         facets[i].mesh->unfoldMesh(depth + 1, max_depth);
     }
 
+    // Change Normal
     Vec4 result = (Vec4)(unfold_coef * n);
     n = math::Vertex(result(0), result(1), result(2), 0);
     n.simplify();
     n.normalize();
-
-    /*std::cout << "  - Normal [" << n(0) << ", " << n(1) << ", " << n(2) << ",
-       "
-              << n(3) << "] / [" << getParentNormal()(0) << ", "
-              << getParentNormal()(1) << ", " << getParentNormal()(2) << ", "
-              << getParentNormal()(3) << "]" << std::endl;*/
   }
 
   // ==========================================================================
@@ -200,7 +195,11 @@ template <int N> struct LinkedMesh : public ILinkedMesh {
 
     math::HMat mat;
     mat.setTransAsAxis(Vec3{-b.xmin, -b.ymin, 0});
+    std::cout << mat << std::endl;
     facets[edge].mesh->transform(mat, true, true, SVGLineWidth::CUTTED);
+
+    b = facets[edge].mesh->getBounds(true, true);
+    std::cout << b << std::endl;
   }
 
   overlaps::MeshOverlaps hasOverlaps(const LinkedPool &pool) override {
@@ -264,7 +263,7 @@ template <int N> struct LinkedMesh : public ILinkedMesh {
       }
 
       // If the intersection is not null, cut it
-      if (intersection.size() >= 1) {
+      if (intersection.size() > 0) {
         translateChildren(i);
         facets[i].linestyle = SVGLineWidth::CUTTED;
         facets[i].cutted = true;
@@ -297,7 +296,7 @@ template <int N> struct LinkedMesh : public ILinkedMesh {
     if (max_depth != -1 && depth >= max_depth)
       return;
 
-    transform(mat);
+    transform(mat, false, true);
 
     // Draw this facet
     for (int i = 0; i < N; i++) {

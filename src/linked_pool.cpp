@@ -75,9 +75,6 @@ MeshBinVector LinkedMeshPool::binPackingAlgorithm(MeshBoxVector &boxes) {
   for (auto &box : boxes) {
     if (box.width < box.height) {
       box.rotated = true;
-      double temp = box.width;
-      box.width = box.height;
-      box.height = box.width;
     }
   }
 
@@ -107,23 +104,23 @@ MeshBinVector LinkedMeshPool::binPackingAlgorithm(MeshBoxVector &boxes) {
         std::cout << "\t\t" << n_c << " -> " << bins[n_bin].corners[n_c];
 
         // Test without rotation
-        temp_score = bins[n_bin].getScore(n_c, box, false);
+        temp_score = bins[n_bin].getScore(n_c, box, box.rotated);
         std::cout << " NR(" << temp_score << ") ";
         if (temp_score > score) {
           best_bin = n_bin;
           best_corner = n_c;
           score = temp_score;
-          best_rotated = false;
+          best_rotated = box.rotated;
         }
 
         // Test with rotation
-        temp_score = bins[n_bin].getScore(n_c, box, true);
+        temp_score = bins[n_bin].getScore(n_c, box, !box.rotated);
         std::cout << "R(" << temp_score << ") " << std::endl;
         if (temp_score > score) {
           best_bin = n_bin;
           best_corner = n_c;
           score = temp_score;
-          best_rotated = true;
+          best_rotated = !box.rotated;
         }
       }
     }
@@ -166,14 +163,19 @@ std::string LinkedMeshPool::getAsSVGString(MeshBin &bin,
     mat(0, 1) = args.resolution * ((box.rotated) ? 1 : 0);
     mat(1, 0) = args.resolution * ((box.rotated) ? -1 : 0);
     mat(1, 1) = args.resolution * ((box.rotated) ? 0 : 1);
+    // mat(0, 0) = args.resolution;
+    // mat(1, 1) = args.resolution;
     mat(2, 2) = args.resolution;
 
     // Translation part
     mat(0, 3) = args.resolution * box.x;
-    mat(1, 3) = args.resolution * box.y;
+    mat(1, 3) =
+        args.resolution * (box.y + ((box.rotated) ? box.getHeight() : 0));
 
     auto b = box.root->getBounds(true, true);
     std::cout << " of " << b << std::endl;
+
+    std::cout << mat << std::endl;
 
     box.root->fillSVGString(ss, mat, 0, args.max_depth);
 
@@ -188,6 +190,17 @@ std::string LinkedMeshPool::getAsSVGString(MeshBin &bin,
          << "\" y=\"" << args.resolution * (2 * box.y + box.getHeight()) / 2
          << "\" font-size=\"" << 4 * args.resolution << "px\">" << box.id
          << "</text>";
+
+      auto db = box.root->getBounds(true, true);
+      std::cout << db << std::endl;
+      ss << "<rect x=\"" << db.xmin << "\" y=\"" << db.ymin << "\" width=\""
+         << (box.rotated ? db.ymax - db.ymin : db.xmax - db.xmin)
+         << "\" height=\""
+         << (box.rotated ? db.xmax - db.xmin : db.ymax - db.ymin)
+         << "\" "
+            "style=\"fill:transparent;stroke:blue;stroke-width:2;stroke-"
+            "opacity:0.6;\" "
+            "/>\n"; 
     }
   }
 

@@ -147,6 +147,7 @@ template <typename T> struct Box {
   }
 
   friend std::ostream &operator<<(std::ostream &os, Box &box) {
+    os << ((box.rotated) ? " R" : "");
     os << " Box " << box.id << " (" << box.x << ", " << box.y << ", ";
     os << box.getWidth() << ", " << box.getHeight() << ") ";
     return os;

@@ -1,6 +1,7 @@
 #ifndef KAMI_BOUNDS
 #define KAMI_BOUNDS
 
+#include <limits>
 #include <ostream>
 namespace kami {
 
@@ -8,7 +9,11 @@ struct Bounds {
   double xmin, xmax;
   double ymin, ymax;
 
-  Bounds() : xmin(0), xmax(0), ymin(0), ymax(0) {}
+  Bounds()
+      : xmin(std::numeric_limits<double>::max()),
+        xmax(std::numeric_limits<double>::min()),
+        ymin(std::numeric_limits<double>::max()),
+        ymax(std::numeric_limits<double>::min()) {}
   Bounds(double _xmin, double _xmax, double _ymin, double _ymax)
       : xmin(_xmin), xmax(_xmax), ymin(_ymin), ymax(_ymax) {}
 
