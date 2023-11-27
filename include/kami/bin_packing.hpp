@@ -11,6 +11,8 @@ namespace kami::bin {
 
 #define STHRES math::SIMPLIFICATION_THRESHOLD
 
+constexpr double MIN_DIST{1E-3};
+
 struct BinFormat {
   double width, height;
 
@@ -37,8 +39,12 @@ template <int N> struct PaperA : public BinFormat {
 };
 
 struct Edge {
-  double x1, y1;
-  double x2, y2;
+
+  math::Vertex v1, v2;
+
+  Edge(const math::Vertex &_v1, const math::Vertex &_v2) : v1(_v1), v2(_v2) {}
+
+  inline math::Vertex dir() const { return v1.directionTo(v2, false); }
 
   /**
    * @brief Compute on how much distance the two egdes are overlapping. Consider
@@ -50,32 +56,45 @@ struct Edge {
    */
   static double overlapsLength(const Edge &e1, const Edge &e2) {
     // If the edges are on the same x axis
-    if ((e1.x1 == e2.x1) && (e1.x2 == e2.x2)) {
-      double start = std::max(std::min(e1.y1, e1.y2), std::min(e2.y1, e2.y2));
-      double end = std::min(std::max(e1.y1, e1.y2), std::max(e2.y1, e2.y2));
+    if ((e1.v1(0) == e2.v1(0)) && (e1.v2(0) == e2.v2(0))) {
+      double start =
+          std::max(std::min(e1.v1(1), e1.v2(1)), std::min(e2.v1(1), e2.v2(1)));
+      double end =
+          std::min(std::max(e1.v1(1), e1.v2(1)), std::max(e2.v1(1), e2.v2(1)));
       return std::fabs(end - start);
     }
     // If the edges are on the same y axis
-    else if ((e1.y1 == e2.y1) && (e1.y2 == e2.y2)) {
-      double start = std::max(std::min(e1.x1, e1.x2), std::min(e2.x1, e2.x2));
-      double end = std::min(std::max(e1.x1, e1.x2), std::max(e2.x1, e2.x2));
+    else if ((e1.v1(1) == e2.v1(1)) && (e1.v2(1) == e2.v2(1))) {
+      double start =
+          std::max(std::min(e1.v1(0), e1.v2(0)), std::min(e2.v1(0), e2.v2(0)));
+      double end =
+          std::min(std::max(e1.v1(0), e1.v2(0)), std::max(e2.v1(0), e2.v2(0)));
       return std::fabs(end - start);
     }
     return 0;
+  }
+
+  static std::pair<double, double> findIntersect(const Edge &e1,
+                                                 const Edge &e2) {
+    auto u = e1.dir();
+    auto v = e2.dir();
+    double det = u(1) * v(0) - u(0) * v(1);
+    if (std::fabs(det) < 1E-2)
+      return std::pair<double, double>{-1, -1};
+
+    auto dx = (e2.v1(0) - e1.v1(0)) / det;
+    auto dy = (e2.v1(1) - e1.v1(1)) / det;
+    return std::pair<double, double>{dy * v(0) - dx * v(1),
+                                     dy * u(0) - dx * u(1)};
   }
 };
 
 template <typename T> struct Box {
 
-  static int getId() {
-    static int make_id = 0;
-    return make_id++;
-  }
-
   Box(T *mesh_ptr, const Bounds &bounds)
       : root(mesh_ptr), width(bounds.xmax - bounds.xmin),
         height(bounds.ymax - bounds.ymin) {
-    id = getId();
+    id = -1;
   }
   Box(const Box &other)
       : id(other.id), root(other.root), width(other.width),
@@ -90,27 +109,45 @@ template <typename T> struct Box {
   double getWidth() const { return (rotated) ? height : width; }
   double getHeight() const { return (rotated) ? width : height; }
   Edge getEdge(int edge) const {
-    switch (edge) {
+    switch (edge + 1) {
     case 2:
-      return Edge{x + getWidth(), y, x + getWidth(), y + getHeight()};
+      return Edge{math::Vertex{x + getWidth(), y, 0},
+                  math::Vertex{x + getWidth(), y + getHeight(), 0}};
     case 3:
-      return Edge{x, y + getHeight(), x + getWidth(), y + getHeight()};
+      return Edge{math::Vertex{x, y + getHeight(), 0},
+                  math::Vertex{x + getWidth(), y + getHeight(), 0}};
     case 4:
-      return Edge{x, y, x, y + getHeight()};
+      return Edge{math::Vertex{x, y, 0}, math::Vertex{x, y + getHeight(), 0}};
     default:
-      return Edge{x, y, x + getWidth(), y};
+      return Edge{math::Vertex{x, y, 0}, math::Vertex{x + getWidth(), y, 0}};
     }
   }
+
   bool isColiding(const Box<T> &other) const {
-    bool x_separated = ((x + getWidth() <= other.x + STHRES) ||
-                        (x >= other.x + other.getWidth() - STHRES));
-    bool y_separated = ((y + getHeight() <= other.y + STHRES) ||
-                        (y >= other.y + other.getHeight() - STHRES));
-    return (!x_separated && !y_separated);
+    bool isColiding = false;
+
+    // Test if a boxe is in another
+    isColiding =
+        ((x <= other.x) && (x + getWidth() >= other.x + other.getWidth()) &&
+         (y <= other.y) && (y + getHeight() >= other.y + other.getHeight()));
+    isColiding =
+        isColiding ||
+        ((x >= other.x) && (x + getWidth() <= other.x + other.getWidth()) &&
+         (y >= other.y) && (y + getHeight() <= other.y + other.getHeight()));
+
+    // Test coliding edges
+    for (int i = 0; (i < 4) && !isColiding; i++) {
+      for (int j = 0; (j < 4) && !isColiding; j++) {
+        auto t = Edge::findIntersect(getEdge(i), other.getEdge(j));
+        isColiding = ((MIN_DIST < t.first && t.first < 1 - MIN_DIST) &&
+                      (MIN_DIST < t.second && t.second < 1 - MIN_DIST));
+      }
+    }
+    return isColiding;
   }
 
   friend std::ostream &operator<<(std::ostream &os, Box &box) {
-    os << " Box (" << box.x << ", " << box.y << ", ";
+    os << " Box " << box.id << " (" << box.x << ", " << box.y << ", ";
     os << box.getWidth() << ", " << box.getHeight() << ") ";
     return os;
   }
@@ -198,9 +235,7 @@ template <typename T> struct Bin {
         (tempbox.y + tempbox.getHeight() > format.height))
       return -2;
 
-    // Check for the sides of the bin                6 -> (83.2461, 91.9319)
-    // NR(-22.7065) R(-22.7065)
-
+    // Check for the sides of the bin
     if (tempbox.x <= STHRES)
       cumulated += tempbox.getHeight();
     if (tempbox.y <= STHRES)
@@ -237,7 +272,7 @@ template <typename T> struct Bin {
     // Recompute all corners
     corners.resize(0);
     for (Box<T> &valid_box : boxes) {
-      // Make corner 1 (bottom-right) and corner 2 (top-left)
+      // Make corner 1 (bottom-right) and corner 2 (top-left
       auto c1 = Corner(valid_box.x + valid_box.getWidth(), valid_box.y, C1);
       auto c2 = Corner(valid_box.x, valid_box.y + valid_box.getHeight(), C2);
 
@@ -275,6 +310,7 @@ template <typename T> struct Bin {
       // Project corners
       bool c1_on_another = false, c1_taken = false;
       bool c2_in_corner = false, c2_taken = false;
+      bool cx_taken = false, cy_taken = false;
 
       // Test if corners are valid
       c1_on_another = (c1.y == 0);
@@ -298,6 +334,11 @@ template <typename T> struct Bin {
              (c2.y > other.y) && (c2.y < other.y + other.getHeight()));
         c2_taken = c2_taken || (std::fabs(c2.x - other.x) < STHRES &&
                                 std::fabs(c2.y - other.y) < STHRES);
+
+        cx_taken = cx_taken || (std::fabs(cx.x - other.x) < STHRES &&
+                                std::fabs(cx.y - other.y) < STHRES);
+        cy_taken = cy_taken || (std::fabs(cy.x - other.x) < STHRES &&
+                                std::fabs(cy.y - other.y) < STHRES);
       }
 
       // If they are, add them
@@ -305,9 +346,9 @@ template <typename T> struct Bin {
         corners.push_back(c1);
       if (c2_in_corner && !c2_taken)
         corners.push_back(c2);
-      if (use_cx)
+      if (use_cx && !cx_taken)
         corners.push_back(cx);
-      if (use_cy)
+      if (use_cy && !cy_taken)
         corners.push_back(cy);
     }
 

@@ -67,6 +67,9 @@ MeshBinVector LinkedMeshPool::binPackingAlgorithm(MeshBoxVector &boxes) {
   std::sort(boxes.begin(), boxes.end(), [](MeshBox &elem1, MeshBox &elem2) {
     return (elem1.height * elem1.width) > (elem2.width * elem2.height);
   });
+  int id = 0;
+  for (auto &b : boxes)
+    b.id = id++;
 
   // Orient them horizontally
   for (auto &box : boxes) {
@@ -104,9 +107,9 @@ MeshBinVector LinkedMeshPool::binPackingAlgorithm(MeshBoxVector &boxes) {
         std::cout << "\t\t" << n_c << " -> " << bins[n_bin].corners[n_c];
 
         // Test without rotation
-        std::cout << " NR(" << bins[n_bin].getScore(n_c, box, false) << ") ";
-        if (temp_score = bins[n_bin].getScore(n_c, box, false);
-            temp_score > score) {
+        temp_score = bins[n_bin].getScore(n_c, box, false);
+        std::cout << " NR(" << temp_score << ") ";
+        if (temp_score > score) {
           best_bin = n_bin;
           best_corner = n_c;
           score = temp_score;
@@ -114,10 +117,9 @@ MeshBinVector LinkedMeshPool::binPackingAlgorithm(MeshBoxVector &boxes) {
         }
 
         // Test with rotation
-        std::cout << "R(" << bins[n_bin].getScore(n_c, box, true) << ") "
-                  << std::endl;
-        if (temp_score = bins[n_bin].getScore(n_c, box, true);
-            temp_score > score) {
+        temp_score = bins[n_bin].getScore(n_c, box, true);
+        std::cout << "R(" << temp_score << ") " << std::endl;
+        if (temp_score > score) {
           best_bin = n_bin;
           best_corner = n_c;
           score = temp_score;
@@ -175,12 +177,18 @@ std::string LinkedMeshPool::getAsSVGString(MeshBin &bin,
 
     box.root->fillSVGString(ss, mat, 0, args.max_depth);
 
-    if (args.svg_debug)
+    if (args.svg_debug) {
       ss << "<rect x=\"" << args.resolution * box.x << "\" y=\""
          << args.resolution * box.y << "\" width=\""
          << args.resolution * box.getWidth() << "\" height=\""
          << args.resolution * box.getHeight()
-         << "\" style=\"fill:transparent;stroke:red;stroke-width:5;\" />\n";
+         << "\" style=\"fill:red;stroke:red;stroke-width:5;fill-opacity:0.3;\" "
+            "/>\n";
+      ss << "<text x=\"" << args.resolution * (2 * box.x + box.getWidth()) / 2
+         << "\" y=\"" << args.resolution * (2 * box.y + box.getHeight()) / 2
+         << "\" font-size=\"" << 4 * args.resolution << "px\">" << box.id
+         << "</text>";
+    }
   }
 
   // If in svg debug, add the corners of the bin
