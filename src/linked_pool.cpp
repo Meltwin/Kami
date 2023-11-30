@@ -190,17 +190,6 @@ std::string LinkedMeshPool::getAsSVGString(MeshBin &bin,
          << "\" y=\"" << args.resolution * (2 * box.y + box.getHeight()) / 2
          << "\" font-size=\"" << 4 * args.resolution << "px\">" << box.id
          << "</text>";
-
-      auto db = box.root->getBounds(true, true);
-      std::cout << db << std::endl;
-      ss << "<rect x=\"" << db.xmin << "\" y=\"" << db.ymin << "\" width=\""
-         << (box.rotated ? db.ymax - db.ymin : db.xmax - db.xmin)
-         << "\" height=\""
-         << (box.rotated ? db.xmax - db.xmin : db.ymax - db.ymin)
-         << "\" "
-            "style=\"fill:transparent;stroke:blue;stroke-width:2;stroke-"
-            "opacity:0.6;\" "
-            "/>\n"; 
     }
   }
 
