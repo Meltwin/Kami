@@ -86,7 +86,9 @@ MeshBinVector LinkedMeshPool::binPackingAlgorithm(MeshBoxVector &boxes) {
     L += box.height * box.width;
   }
   int L0 = std::ceil(L / (format.height * format.width));
-  MeshBinVector bins(L0, format);
+  MeshBinVector bins(0);
+  for (ulong i = 0; i < L0; i++)
+    bins.push_back(MeshBin(format));
 
   // PHASE 2: Packing the boxes
   for (auto &box : boxes) {

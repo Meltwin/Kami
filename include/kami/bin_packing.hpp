@@ -219,6 +219,11 @@ template <typename T> struct Bin {
     corners.resize(0);
     corners.push_back(Corner());
   }
+  Bin() : format(PaperA<4>()) {
+    id = getId();
+    corners.resize(0);
+    corners.push_back(Corner());
+  }
 
   int id = -1;
   BinFormat format;
