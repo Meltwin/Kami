@@ -174,8 +174,7 @@ struct ILinkedMesh {
    * @param mat the homogenous matrix describing the transform
    */
   virtual void transform(const math::HMat &mat, bool recusive = false,
-                         bool stop_on_cut = true,
-                         SVGLineWidth style = SVGLineWidth::NONE) = 0;
+                         bool stop_on_cut = true) = 0;
 
   /**
    * @brief Compute recursively the transformation to put this face into the
@@ -220,7 +219,14 @@ struct ILinkedMesh {
    *
    * @param edge the edge which will be translated
    */
-  virtual void translateChildren(int edge) = 0;
+  virtual void sliceEdge(int edge) = 0;
+
+  /**
+   * @brief Slice the mesh from the parent edge
+   *
+   * @param cut_number the cut UID
+   */
+  virtual void cutOnParentEdge(int cut_number) = 0;
 
   /**
    * @brief Return the overlaps between this facets and the others

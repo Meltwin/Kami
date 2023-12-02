@@ -80,12 +80,7 @@ template <int N> struct LinkedMesh : public ILinkedMesh {
   // ==========================================================================
 
   void transform(const math::HMat &mat, bool recusive = false,
-                 bool stop_on_cut = true,
-                 SVGLineWidth style = SVGLineWidth::NONE) override {
-    // Changing the style of the parent edge if needed
-    if (style != SVGLineWidth::NONE) {
-      facets[parent_edge].linestyle = SVGLineWidth::CUTTED;
-    }
+                 bool stop_on_cut = true) override {
 
     // Transform facets
     for (int i = 0; i < N; i++) {
@@ -190,16 +185,24 @@ template <int N> struct LinkedMesh : public ILinkedMesh {
   // Sclicing logic
   // ==========================================================================
 
-  void translateChildren(int edge) override {
-    auto b = facets[edge].mesh->getBounds(true, true);
+  void sliceEdge(int edge) override {
+    // Cut the edge on this side
+    facets[edge].linestyle = SVGLineWidth::CUTTED;
+    facets[edge].cutted = true;
+    facets[edge].cut_number = LinkedEdge<ILinkedMesh>::getCutNumber();
+    facets[edge].mesh->cutOnParentEdge(facets[edge].cut_number);
 
+    // Move the child to the center
+    auto b = facets[edge].mesh->getBounds(true, true);
     math::HMat mat;
     mat.setTransAsAxis(Vec3{-b.xmin, -b.ymin, 0});
-    std::cout << mat << std::endl;
-    facets[edge].mesh->transform(mat, true, true, SVGLineWidth::CUTTED);
+    facets[edge].mesh->transform(mat, true, true);
+  }
 
-    b = facets[edge].mesh->getBounds(true, true);
-    std::cout << b << std::endl;
+  void cutOnParentEdge(int cut_number) override {
+    facets[parent_edge].cutted = true;
+    facets[parent_edge].linestyle = SVGLineWidth::CUTTED;
+    facets[parent_edge].cut_number = cut_number;
   }
 
   overlaps::MeshOverlaps hasOverlaps(const LinkedPool &pool) override {
@@ -264,9 +267,7 @@ template <int N> struct LinkedMesh : public ILinkedMesh {
 
       // If the intersection is not null, cut it
       if (intersection.size() > 0) {
-        translateChildren(i);
-        facets[i].linestyle = SVGLineWidth::CUTTED;
-        facets[i].cutted = true;
+        sliceEdge(i);
         boxes.push_back(bin::Box<ILinkedMesh>{
             facets[i].mesh,
             facets[i].mesh->getBounds(true, true),
@@ -300,6 +301,7 @@ template <int N> struct LinkedMesh : public ILinkedMesh {
 
     // Draw this facet
     for (int i = 0; i < N; i++) {
+      facets[i].text_size *= mat(2, 2);
       facets[i].getAsSVGLine(stream);
     }
 

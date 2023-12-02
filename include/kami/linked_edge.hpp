@@ -23,12 +23,19 @@ constexpr double BOUNDS_PADDING{0.0f};
  */
 template <typename T> struct LinkedEdge {
 
+  static int getCutNumber() {
+    static int cut_n = 1;
+    return cut_n++;
+  }
+
   // ==========================================================================
   // Edge description
   // ==========================================================================
   // Linking properties
   bool owned = false;
   bool cutted = false;
+  int cut_number = -1;
+  int text_size = 2;
   T *mesh = nullptr;
 
   // Vertices
@@ -129,6 +136,15 @@ template <typename T> struct LinkedEdge {
     stream << "y2=\"" << v2(1) << "\" ";
     appendLineStyle(linestyle, stream);
     stream << "/>\n";
+
+    if (cut_number != -1) {
+      stream << "<text ";
+      stream << "x=\"" << (v1(0) + v2(0)) / 2 << "\" ";
+      stream << "y=\"" << (v1(1) + v2(1)) / 2 << "\" ";
+      stream << "font-size=\"" << text_size << "px\">";
+      stream << "C" << cut_number;
+      stream << "</text>";
+    }
   }
 
   // ==========================================================================
