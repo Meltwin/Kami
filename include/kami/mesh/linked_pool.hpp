@@ -1,18 +1,17 @@
 #ifndef KAMI_LINKED_POOL
 #define KAMI_LINKED_POOL
 
-#include "kami/arguments.hpp"
-#include "kami/bin_packing.hpp"
-#include "kami/bounds.hpp"
-#include "kami/linked_mesh.hpp"
-#include "kami/math.hpp"
+#include "kami/export/paper_format.hpp"
+#include "kami/global/arguments.hpp"
+#include "kami/mesh/linked_poly.hpp"
+#include "kami/packing/bin.hpp"
+#include "kami/packing/box.hpp"
 #include <vector>
-
 
 namespace kami {
 
-typedef bin::Bin<ILinkedMesh> MeshBin;
-typedef bin::Box<ILinkedMesh> MeshBox;
+typedef packing::Bin<LinkedPolygon> MeshBin;
+typedef packing::Box<LinkedPolygon> MeshBox;
 typedef std::vector<MeshBin> MeshBinVector;
 typedef std::vector<MeshBox> MeshBoxVector;
 
@@ -24,10 +23,10 @@ typedef std::vector<MeshBox> MeshBoxVector;
  * @brief Represent a pool of facet that are possibly not linked together
  *
  */
-struct LinkedMeshPool : std::vector<std::shared_ptr<ILinkedMesh>> {
+struct LinkedMeshPool : std::vector<std::shared_ptr<LinkedPolygon>> {
   LinkedMeshPool(unsigned long _size)
-      : std::vector<std::shared_ptr<ILinkedMesh>>(
-            std::vector<std::shared_ptr<ILinkedMesh>>(_size)) {}
+      : std::vector<std::shared_ptr<LinkedPolygon>>(
+            std::vector<std::shared_ptr<LinkedPolygon>>(_size)) {}
   LinkedMeshPool(microstl::Mesh &mesh);
 
   // ==========================================================================
@@ -78,7 +77,7 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<ILinkedMesh>> {
    *
    * @param _format the format of the bin (default is A4 paper)
    */
-  void setBinFormat(bin::BinFormat &_format) { format = _format; }
+  void setBinFormat(out::PaperFormat &_format) { format = _format; }
 
   /**
    * @brief Slice the children into part to prevent mesh overlapping or parts
@@ -119,14 +118,14 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<ILinkedMesh>> {
   friend std::ostream &operator<<(std::ostream &os,
                                   const LinkedMeshPool &pool) {
     os << "Pool : " << std::endl;
-    for (const std::shared_ptr<ILinkedMesh> mesh : pool) {
+    for (const std::shared_ptr<LinkedPolygon> mesh : pool) {
       os << *mesh;
     }
     return os;
   }
 
 private:
-  bin::BinFormat format = bin::PaperA<4>();
+  out::PaperFormat format = out::PaperA<4>();
   static constexpr ulong DEFAULT_ROOT{0};
   ulong root = DEFAULT_ROOT;
 };
