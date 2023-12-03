@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-file(GLOB S_FILES src/*.cpp)
+file(GLOB_RECURSE S_FILES src/*.cpp)
 
 find_package( Eigen3 REQUIRED )
 

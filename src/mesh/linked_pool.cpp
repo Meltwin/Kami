@@ -1,9 +1,7 @@
-#include "kami/linked_pool.hpp"
-#include "kami/arguments.hpp"
-#include "kami/bin_packing.hpp"
-#include "kami/bounds.hpp"
-#include "kami/linked_mesh.hpp"
-#include "kami/linked_polygon.hpp"
+#include "kami/mesh/linked_pool.hpp"
+#include "kami/global/arguments.hpp"
+#include "kami/mesh/linked_implementations.hpp"
+#include "kami/mesh/linked_poly.hpp"
 #include <cmath>
 #include <sstream>
 #include <vector>
@@ -15,7 +13,7 @@ namespace kami {
 // ==========================================================================
 
 LinkedMeshPool::LinkedMeshPool(microstl::Mesh &mesh)
-    : std::vector<std::shared_ptr<ILinkedMesh>>(mesh.facets.size()) {
+    : std::vector<std::shared_ptr<LinkedPolygon>>(mesh.facets.size()) {
   for (ulong i = 0; i < mesh.facets.size(); i++) {
     (*this)[i] = std::make_shared<LinkedTriangle>(&mesh.facets[i], i);
   }
@@ -46,7 +44,7 @@ MeshBinVector LinkedMeshPool::slice() {
   // Transforming the root
   auto b = (*this)[root]->getBounds(true, true);
   math::HMat mat;
-  mat.setTransAsAxis(Vec3{-b.xmin, -b.ymin, 0});
+  mat.setTransAsAxis(math::Vec3{-b.xmin, -b.ymin, 0});
   (*this)[root]->transform(mat, true, true);
 
   // Adding the root to the list
@@ -137,7 +135,7 @@ MeshBinVector LinkedMeshPool::binPackingAlgorithm(MeshBoxVector &boxes) {
       std::cout << "\tPut in a new box at " << best_corner
                 << ((best_rotated) ? " [Rotated]" : " [Not Rotated]")
                 << " with score " << score << std::endl;
-      bins.push_back(bin::Bin<ILinkedMesh>(format));
+      bins.push_back(packing::Bin<LinkedPolygon>(format));
       bins[bins.size() - 1].putIn(0, box, false);
     }
     std::cout << std::endl;

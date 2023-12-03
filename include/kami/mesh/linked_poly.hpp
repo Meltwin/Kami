@@ -11,47 +11,123 @@
  * @copyright Copyright (c) Meltwin 2023, under MIT licence
  */
 
-#include "kami/bin_packing.hpp"
-#include "kami/bounds.hpp"
-#include "kami/display_settings.hpp"
-#include "kami/linked_edge.hpp"
-#include "kami/math.hpp"
-#include "kami/overlaps.hpp"
-#include "microstl/microstl.hpp"
-#include <cmath>
-#include <cstdint>
+#include "kami/math/barycenter.hpp"
+#include "kami/math/base_types.hpp"
+#include "kami/math/bounds.hpp"
+#include "kami/math/hmat.hpp"
+#include "kami/math/overlaps.hpp"
+#include "kami/math/vertex.hpp"
+#include "kami/mesh/linked_edge.hpp"
+#include "kami/packing/box.hpp"
 #include <memory>
-#include <ostream>
-#include <sstream>
 #include <vector>
 
-namespace kami {
 
-constexpr long NO_REC_LIMIT{-1};
+namespace kami {
 
 // ==========================================================================
 // Linked Facet Meshing
 // ==========================================================================
 
-struct ILinkedMesh {
+class LinkedPolygon {
+  typedef std::vector<std::shared_ptr<LinkedPolygon>> LinkedPool;
 
-  typedef std::vector<std::shared_ptr<ILinkedMesh>> LinkedPool;
+public:
+  LinkedPolygon(int N = 3) : n(math::Vertex(0, 0, 0)) {
+    facets = std::vector<LinkedEdge<LinkedPolygon>>(N);
+    n_edges = N;
+  }
 
+  // ==========================================================================
+  // Getters
+  // ==========================================================================
+
+  /**
+   * @brief Get the bounds for displaying this facet
+   */
+  const math::Bounds getBounds(bool recursive, bool stop_on_cut = true) const;
+
+  ulong getUID() const { return uid; }
+
+  int getParentEdgeIndex() const { return parent_edge; }
+
+  std::string getParentEdgeName() const { return getEdgeName(parent_edge); }
+
+  // ==========================================================================
+  // Transformations
+  // ==========================================================================
+
+  /**
+   * @brief Transform this mesh facet with the given homogenous matrix
+   *
+   * @param mat the homogenous matrix describing the transform
+   */
+  void transform(const math::HMat &mat, bool recusive = false,
+                 bool stop_on_cut = true);
+
+  /**
+   * @brief Compute recursively the transformation to put this face into the
+   * world plane and call this function on the owned children.
+   */
+  void unfoldMesh(long depth, long max_depth);
+
+  // ==========================================================================
+  // Linking logic
+  // ==========================================================================
+
+  /**
+   * @brief Search for neighbours facets in the pool and create a link to
+   * them. Get the ownership on these facets if no one is linked to them.
+   *
+   * @param pool the pool of facets of the STL file
+   * @return std::vector<ulong> the index of the owned facets
+   */
+  std::vector<ulong> linkNeighbours(LinkedPool &pool);
+
+  // ==========================================================================
+  // Sclicing logic
+  // ==========================================================================
+
+  /**
+   * @brief Iterate over the children to find overlapping triangles. Recursively
+   * pass the overlapping info to the parent from the childs.
+   * When two childs report the same overlapping (i.e. A overlapping with B and
+   * B overlapping with A) the parent should cut the mesh on one of the two
+   * edges and displace the splitted part farther.
+   */
+  overlaps::MeshOverlaps
+  sliceChildren(const LinkedPool &, std::vector<packing::Box<LinkedPolygon>> &);
+
+  // ==========================================================================
+  // STL Model Unfold + SVG Export
+  // ==========================================================================
+
+  /**
+   * @brief Fill the given stringstream with the serialized version of this
+   * facet. This function is called recursively.
+   *
+   * @param stream the string stream to fill
+   * @param mat the transformation matrix to apply
+   * @param depth the actual depth
+   * @param max_depth the maximum depth
+   */
+  void fillSVGString(std::stringstream &stream, const math::HMat &mat,
+                     int depth, int max_depth);
+
+protected:
   // ==========================================================================
   // Facet description
   // ==========================================================================
   // Facet properties
-  ulong uid; //< The UID if this facet
-
-  // Linking
-  int parent_edge = INT8_MAX; //< Edge to the parent
-  math::Vertex n;             //< Normal of this facet
+  ulong n_edges;                                 //< The number of edges
+  ulong uid;                                     //< The UID if this facet
+  std::vector<LinkedEdge<LinkedPolygon>> facets; //< Edges of this facet
+  int parent_edge = INT8_MAX;                    //< Edge to the parent
+  math::Vertex n;                                //< Normal of this facet
 
   // Flattening
   const math::HMat std_mat; //< Basic HMat for no transforms
   math::HMat unfold_coef;   //< HMat for transforming n to the world normal
-
-  ILinkedMesh();
 
   // ==========================================================================
   // Getters
@@ -60,31 +136,37 @@ struct ILinkedMesh {
   /**
    * @brief Get the edge corresponding to this number
    */
-  virtual LinkedEdge<ILinkedMesh> getEdge(int edge) const = 0;
+  inline LinkedEdge<LinkedPolygon> getEdge(int edge) const {
+    if (edge < n_edges)
+      return facets[edge];
+    return facets[0];
+  };
 
   /**
    * @brief Get the edge name
    */
-  virtual std::string getEdgeName(int edge) const = 0;
+  inline std::string getEdgeName(int edge) const {
+    std::stringstream ss;
+    ss << "f" << edge + 1 << ((edge == n_edges - 1) ? 1 : edge + 2);
+    return ss.str();
+  };
 
   /**
    * @brief Get a pointer to the parent
    *
    * @return a pointer to the parent if exist, else nullptr
    */
-  virtual const ILinkedMesh *getParent() const = 0;
-
-  /**
-   * @brief Get the bounds for displaying this facet
-   */
-  virtual const Bounds getBounds(bool recursive,
-                                 bool stop_on_cut = true) const = 0;
+  inline const LinkedPolygon *getParent() const {
+    if (parent_edge < n_edges)
+      return facets[parent_edge].getMesh();
+    return nullptr;
+  };
 
   /**
    * @brief Get the barycenter of the children of this facet and itself.
    */
-  virtual const void getBarycenter(math::Barycenter &bary, bool recursive,
-                                   bool stop_on_cut = true) const = 0;
+  const void getBarycenter(math::Barycenter &bary, bool recursive,
+                           bool stop_on_cut = true) const;
 
   // ==========================================================================
   // Vertex utils
@@ -168,32 +250,9 @@ struct ILinkedMesh {
    */
   math::HMat getHTransform(int edge) const;
 
-  /**
-   * @brief Transform this mesh facet with the given homogenous matrix
-   *
-   * @param mat the homogenous matrix describing the transform
-   */
-  virtual void transform(const math::HMat &mat, bool recusive = false,
-                         bool stop_on_cut = true) = 0;
-
-  /**
-   * @brief Compute recursively the transformation to put this face into the
-   * world plane and call this function on the owned children.
-   */
-  virtual void unfoldMesh(long depth, long max_depth) = 0;
-
   // ==========================================================================
   // Linking logic
   // ==========================================================================
-
-  /**
-   * @brief Search for neighbours facets in the pool and create a link to
-   * them. Get the ownership on these facets if no one is linked to them.
-   *
-   * @param pool the pool of facets of the STL file
-   * @return std::vector<ulong> the index of the owned facets
-   */
-  virtual std::vector<ulong> linkNeighbours(LinkedPool &pool) = 0;
 
   /**
    * @brief Test whether the caller has two common points with this facet.
@@ -206,7 +265,7 @@ struct ILinkedMesh {
    * @return true if the two facets are neighbours
    * @return false if they are not neighbours
    */
-  virtual bool hasSameEdge(ILinkedMesh *parent_facet, int edge) = 0;
+  bool hasSameEdge(LinkedPolygon *parent_facet, int edge);
 
   // ==========================================================================
   // Sclicing logic
@@ -219,52 +278,32 @@ struct ILinkedMesh {
    *
    * @param edge the edge which will be translated
    */
-  virtual void sliceEdge(int edge) = 0;
+  void sliceEdge(int edge);
 
   /**
    * @brief Slice the mesh from the parent edge
    *
    * @param cut_number the cut UID
    */
-  virtual void cutOnParentEdge(int cut_number) = 0;
+  void cutOnParentEdge(int cut_number);
 
   /**
    * @brief Return the overlaps between this facets and the others
    */
-  virtual overlaps::MeshOverlaps hasOverlaps(const LinkedPool &pool) = 0;
-
-  /**
-   * @brief Iterate over the children to find overlapping triangles. Recursively
-   * pass the overlapping info to the parent from the childs.
-   * When two childs report the same overlapping (i.e. A overlapping with B and
-   * B overlapping with A) the parent should cut the mesh on one of the two
-   * edges and displace the splitted part farther.
-   */
-  virtual overlaps::MeshOverlaps
-  sliceChildren(const LinkedPool &, std::vector<bin::Box<ILinkedMesh>> &) = 0;
-
-  // ==========================================================================
-  // STL Model Unfold + SVG Export
-  // ==========================================================================
-
-  /**
-   * @brief Fill the given stringstream with the serialized version of this
-   * facet. This function is called recursively.
-   *
-   * @param stream the string stream to fill
-   * @param mat the transformation matrix to apply
-   * @param depth the actual depth
-   * @param max_depth the maximum depth
-   */
-  virtual void fillSVGString(std::stringstream &stream, const math::HMat &mat,
-                             int depth, int max_depth) = 0;
+  overlaps::MeshOverlaps hasOverlaps(const LinkedPool &pool);
 
   // ==========================================================================
   // Debug
   // ==========================================================================
-  virtual void displayInformations(std::ostream &os) const = 0;
+  void displayInformations(std::ostream &os) const {
+    os << "Mesh " << uid << " : " << std::endl;
+    for (int i = 0; i < n_edges; i++) {
+      os << "  - f" << i + 1 << ((i == n_edges - 1) ? 1 : i + 2) << " "
+         << facets[i] << std::endl;
+    }
+  };
 
-  friend std::ostream &operator<<(std::ostream &os, const ILinkedMesh &mesh) {
+  friend std::ostream &operator<<(std::ostream &os, const LinkedPolygon &mesh) {
     os << "Mesh " << mesh.uid << " : " << std::endl;
     mesh.displayInformations(os);
     os << "  - Normal [" << mesh.n(0) << ", " << mesh.n(1) << ", " << mesh.n(2)

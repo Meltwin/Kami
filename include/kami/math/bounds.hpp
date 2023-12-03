@@ -3,7 +3,8 @@
 
 #include <limits>
 #include <ostream>
-namespace kami {
+
+namespace kami::math {
 
 struct Bounds {
   double xmin, xmax;
@@ -35,6 +36,6 @@ struct Bounds {
     return os;
   }
 };
-} // namespace kami
+} // namespace kami::math
 
 #endif

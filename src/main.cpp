@@ -1,8 +1,7 @@
-#include "kami/arguments.hpp"
-#include "kami/bin_packing.hpp"
-#include "kami/linked_mesh.hpp"
-#include "kami/linked_pool.hpp"
-#include "kami/logging.hpp"
+#include "kami/global/arguments.hpp"
+#include "kami/global/logging.hpp"
+#include "kami/mesh/linked_poly.hpp"
+#include "kami/mesh/linked_pool.hpp"
 #include "microstl/microstl.hpp"
 #include <chrono>
 #include <fstream>
@@ -64,7 +63,7 @@ int main(int argc, char **argv) {
   }
 
   // Slice the linked mesh in multiple parts
-  kami::MeshBinVector bins(0, kami::MeshBin(kami::bin::PaperA<4>()));
+  kami::MeshBinVector bins(0, kami::MeshBin(kami::out::PaperA<4>()));
   TIMED_SECTION("Slicing the linked mesh", bins = pool.slice());
 
   // Extract pattern

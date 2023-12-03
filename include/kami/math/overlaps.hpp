@@ -1,8 +1,8 @@
 #ifndef KAMI_OVERLAPS
 #define KAMI_OVERLAPS
 
-#include "kami/math.hpp"
 #include <ostream>
+#include <vector>
 
 namespace kami::overlaps {
 

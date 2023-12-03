@@ -38,6 +38,7 @@ constexpr char ARG_HELP[]{"-h"};
 
 enum class Arg { NONE, INPUT, OUTPUT, W_SCALING, RESOLUTION, MAX_DEPTH };
 
+constexpr long NO_REC_LIMIT{-1};
 struct Args {
   // IO
   std::string input = "";
@@ -48,7 +49,7 @@ struct Args {
   double resolution = 10.0;
 
   // Debug
-  int max_depth = -1;
+  int max_depth = NO_REC_LIMIT;
 
   bool askHelp = false;
   bool svg_debug = false;
