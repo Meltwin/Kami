@@ -11,17 +11,18 @@
  * @copyright Copyright (c) Meltwin 2023, under MIT licence
  */
 
+#include "kami/global/arguments.hpp"
 #include "kami/math/barycenter.hpp"
 #include "kami/math/base_types.hpp"
 #include "kami/math/bounds.hpp"
 #include "kami/math/hmat.hpp"
 #include "kami/math/overlaps.hpp"
 #include "kami/math/vertex.hpp"
+#include "kami/mesh/fixation.hpp"
 #include "kami/mesh/linked_edge.hpp"
 #include "kami/packing/box.hpp"
 #include <memory>
 #include <vector>
-
 
 namespace kami {
 
@@ -31,10 +32,11 @@ namespace kami {
 
 class LinkedPolygon {
   typedef std::vector<std::shared_ptr<LinkedPolygon>> LinkedPool;
+  typedef LinkedEdge<LinkedPolygon> PolyEdge;
 
 public:
   LinkedPolygon(int N = 3) : n(math::Vertex(0, 0, 0)) {
-    facets = std::vector<LinkedEdge<LinkedPolygon>>(N);
+    facets = std::vector<PolyEdge>(N);
     n_edges = N;
   }
 
@@ -52,6 +54,14 @@ public:
   int getParentEdgeIndex() const { return parent_edge; }
 
   std::string getParentEdgeName() const { return getEdgeName(parent_edge); }
+
+  const PolyEdge &getParentEdge() const { return facets[parent_edge]; }
+
+  math::Vertex getEdgeYAxis(ulong edge) const {
+    math::Vec3 x_axis = getEdgeDirection(parent_edge, true);
+    math::Vec3 z_axis = getParentNormal();
+    return (math::Vec3)(z_axis.cross(x_axis));
+  }
 
   // ==========================================================================
   // Transformations
@@ -99,8 +109,14 @@ public:
   sliceChildren(const LinkedPool &, std::vector<packing::Box<LinkedPolygon>> &);
 
   // ==========================================================================
-  // STL Model Unfold + SVG Export
+  // Export
   // ==========================================================================
+
+  /**
+   * @brief Make the fixations for this face and call recursively on the owned
+   * childs.
+   */
+  void makeFixations(const fix::FixationParameters &);
 
   /**
    * @brief Fill the given stringstream with the serialized version of this
@@ -112,18 +128,18 @@ public:
    * @param max_depth the maximum depth
    */
   void fillSVGString(std::stringstream &stream, const math::HMat &mat,
-                     int depth, int max_depth);
+                     const args::Args &args, int depth);
 
 protected:
   // ==========================================================================
   // Facet description
   // ==========================================================================
   // Facet properties
-  ulong n_edges;                                 //< The number of edges
-  ulong uid;                                     //< The UID if this facet
-  std::vector<LinkedEdge<LinkedPolygon>> facets; //< Edges of this facet
-  int parent_edge = INT8_MAX;                    //< Edge to the parent
-  math::Vertex n;                                //< Normal of this facet
+  ulong n_edges;                //< The number of edges
+  ulong uid;                    //< The UID if this facet
+  std::vector<PolyEdge> facets; //< Edges of this facet
+  int parent_edge = INT8_MAX;   //< Edge to the parent
+  math::Vertex n;               //< Normal of this facet
 
   // Flattening
   const math::HMat std_mat; //< Basic HMat for no transforms
@@ -134,9 +150,18 @@ protected:
   // ==========================================================================
 
   /**
+   * @brief Get the edge corresponding to this number (const reference)
+   */
+  inline const PolyEdge &getEdgeConst(int edge) const {
+    if (edge < n_edges)
+      return facets[edge];
+    return facets[0];
+  };
+
+  /**
    * @brief Get the edge corresponding to this number
    */
-  inline LinkedEdge<LinkedPolygon> getEdge(int edge) const {
+  inline PolyEdge &getEdge(int edge) {
     if (edge < n_edges)
       return facets[edge];
     return facets[0];
@@ -162,6 +187,10 @@ protected:
     return nullptr;
   };
 
+  inline PolyEdge &getOtherEdge(ulong edge) {
+    return getEdge(edge).getMesh()->getEdge(getEdge(edge).getOtherEdge());
+  }
+
   /**
    * @brief Get the barycenter of the children of this facet and itself.
    */
@@ -178,7 +207,7 @@ protected:
    * @param name the edge we want the vertices of
    */
   math::VertexPair getEdgeVertex(int edge) const {
-    return getEdge(edge).pair();
+    return getEdgeConst(edge).pair();
   };
 
   /**
@@ -195,7 +224,7 @@ protected:
    * @return an homogenous eigen vector representing the edge direction
    */
   math::Vertex getEdgeDirection(int edge, bool normalized = false) const {
-    return getEdge(edge).dir(normalized);
+    return getEdgeConst(edge).dir(normalized);
   };
 
   /**
@@ -204,7 +233,9 @@ protected:
    * @param edge the edge we will make the vector for
    * @return Vec3 a eigen vector representing the edge position
    */
-  math::Vertex getEdgePosition(int edge) const { return getEdge(edge).pos(); };
+  math::Vertex getEdgePosition(int edge) const {
+    return getEdgeConst(edge).pos();
+  };
 
   /**
    * @brief Get the Normal vector of the parent of this facet. If there is no
@@ -291,6 +322,33 @@ protected:
    * @brief Return the overlaps between this facets and the others
    */
   overlaps::MeshOverlaps hasOverlaps(const LinkedPool &pool);
+
+  // ==========================================================================
+  // Export
+  // ==========================================================================
+  struct EdgeInfos {
+    math::Vertex u{0, 0, 0}, v{0, 0, 0};
+    double angle = 0;
+    bool has_common_point = false;
+    math::Vertex P{0, 0, 0, 0};
+  };
+
+  /**
+   * @brief Get the Edge parameters for creating fixations. Should be called on
+   * an owned edge.
+   * @param edge_n the edge index
+   */
+  EdgeInfos getEdgeInfoFixations(const LinkedEdge<LinkedPolygon> &edge) const;
+
+  /**
+   * @brief Add the triangle to make a glue patch
+   */
+  void makeGlueFixations(const fix::FixationParameters &, ulong);
+
+  /**
+   * @brief Add the shape to make a clip fixation between two triangles.
+   */
+  void makeClipFixations(const fix::FixationParameters &, ulong);
 
   // ==========================================================================
   // Debug

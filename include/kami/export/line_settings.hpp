@@ -5,7 +5,7 @@
 
 namespace kami::out {
 
-enum class LineStyle { NONE, PERIMETER, INNER, CUTTED };
+enum class LineStyle { NONE, PERIMETER, INNER, CUTTED, TEST };
 
 inline void appendLineStyle(LineStyle line, std::stringstream &ss) {
   switch (line) {
@@ -20,6 +20,10 @@ inline void appendLineStyle(LineStyle line, std::stringstream &ss) {
     break;
   case LineStyle::CUTTED:
     ss << "stroke=\"purple\" stroke-width=\"4\" stroke-dasharray=\"5,5\"";
+    break;
+  case LineStyle::TEST:
+    ss << "stroke=\"green\" stroke-width=\"6\" stroke-dasharray=\"2,2\" "
+          "fill=\"green\" fill-opacity=\"0.6\"";
     break;
   }
 }

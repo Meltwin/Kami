@@ -83,11 +83,16 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<LinkedPolygon>> {
    * @brief Slice the children into part to prevent mesh overlapping or parts
    * being too big for the bin to contains.
    */
-  MeshBinVector slice();
+  MeshBoxVector slice();
 
   // ==========================================================================
   // Exporting
   // ==========================================================================
+
+  /**
+   * @brief Generate all fixations on the edges of the mesh.
+   */
+  void makeFixations(MeshBoxVector &, const fix::FixationParameters &);
 
   /**
    * @brief Organise the boxes (parts of the figures) into several bins of the

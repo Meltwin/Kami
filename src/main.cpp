@@ -58,13 +58,23 @@ int main(int argc, char **argv) {
   std::cout << pool << std::endl;
 
   // Change the figure scale in the world
-  if (args.world_scaling != 1.f) {
-    TIMED_SECTION("Rescaling the mesh", pool.scaleFigure(args.world_scaling));
-  }
+  TIMED_SECTION("Rescaling the mesh", pool.scaleFigure(-args.world_scaling));
 
   // Slice the linked mesh in multiple parts
+  kami::MeshBoxVector boxes(0);
+  TIMED_SECTION("Slicing the linked mesh", boxes = pool.slice());
+  std::cout << "Got " << boxes.size() << " parts for this mesh" << std::endl;
+
+  // Make fixations
+  pool.makeFixations(boxes, kami::fix::FixationParameters{});
+
+  for (auto &b : boxes) {
+    std::cout << "\t" << b << std::endl;
+  }
+
+  // Prepare bins
   kami::MeshBinVector bins(0, kami::MeshBin(kami::out::PaperA<4>()));
-  TIMED_SECTION("Slicing the linked mesh", bins = pool.slice());
+  TIMED_SECTION("Packing all boxes", bins = pool.binPackingAlgorithm(boxes));
 
   // Extract pattern
   std::cout << "Exporting " << bins.size() << " figure(s) as SVG" << std::endl;

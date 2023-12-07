@@ -37,7 +37,7 @@ void LinkedMeshPool::makeFacetPoolInternalLink() {
 // Slicing
 // ==========================================================================
 
-MeshBinVector LinkedMeshPool::slice() {
+MeshBoxVector LinkedMeshPool::slice() {
   MeshBoxVector boxes;
   (*this)[root]->sliceChildren(*this, boxes);
 
@@ -50,14 +50,24 @@ MeshBinVector LinkedMeshPool::slice() {
   // Adding the root to the list
   boxes.push_back(MeshBox((*this)[root].get(), (*this)[root]->getBounds(true)));
 
-  // Debug
-  std::cout << "Got " << boxes.size() << " parts for this mesh" << std::endl;
-  for (auto &b : boxes) {
-    std::cout << "\t" << b << std::endl;
-  }
-
   // Launch the bin packing
-  return binPackingAlgorithm(boxes);
+  return boxes;
+}
+
+// ==========================================================================
+// Exporting
+// ==========================================================================
+
+void LinkedMeshPool::makeFixations(MeshBoxVector &boxes,
+                                   const fix::FixationParameters &params) {
+  (*this)[root]->makeFixations(params);
+
+  // Update all boxes sizes
+  for (auto &box : boxes) {
+    auto b = box.root->getBounds(true, true);
+    box.width = (b.xmax - b.xmin);
+    box.height = (b.ymax - b.ymin);
+  }
 }
 
 MeshBinVector LinkedMeshPool::binPackingAlgorithm(MeshBoxVector &boxes) {
@@ -143,10 +153,6 @@ MeshBinVector LinkedMeshPool::binPackingAlgorithm(MeshBoxVector &boxes) {
   return bins;
 }
 
-// ==========================================================================
-// Exporting
-// ==========================================================================
-
 std::string LinkedMeshPool::getAsSVGString(MeshBin &bin,
                                            const args::Args &args) const {
   std::stringstream ss;
@@ -175,16 +181,14 @@ std::string LinkedMeshPool::getAsSVGString(MeshBin &bin,
     auto b = box.root->getBounds(true, true);
     std::cout << " of " << b << std::endl;
 
-    std::cout << mat << std::endl;
-
-    box.root->fillSVGString(ss, mat, 0, args.max_depth);
+    box.root->fillSVGString(ss, mat, args, 0);
 
     if (args.svg_debug) {
       ss << "<rect x=\"" << args.resolution * box.x << "\" y=\""
          << args.resolution * box.y << "\" width=\""
          << args.resolution * box.getWidth() << "\" height=\""
          << args.resolution * box.getHeight()
-         << "\" style=\"fill:red;stroke:red;stroke-width:5;fill-opacity:0.3;\" "
+         << "\" style=\"fill:red;stroke:red;stroke-width:5;fill-opacity:0.1;\" "
             "/>\n";
       ss << "<text x=\"" << args.resolution * (2 * box.x + box.getWidth()) / 2
          << "\" y=\"" << args.resolution * (2 * box.y + box.getHeight()) / 2

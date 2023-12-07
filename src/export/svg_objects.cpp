@@ -3,7 +3,7 @@
 namespace kami::out {
 
 void svg::line(stream &os, const LineParams &p) {
-  os << "<line ";
+  os << "\t<line ";
   os << "x1=\"" << p.x1 << "\" ";
   os << "y1=\"" << p.y1 << "\" ";
   os << "x2=\"" << p.x2 << "\" ";
@@ -12,13 +12,22 @@ void svg::line(stream &os, const LineParams &p) {
   os << "/>\n";
 }
 
+void svg::circle(stream &os, const CircleParams &p) {
+  os << "\t<circle ";
+  os << "cx=\"" << p.x << "\" ";
+  os << "cy=\"" << p.y << "\" ";
+  os << "r=\"" << p.r << "\" ";
+  appendLineStyle(p.style, os);
+  os << "/>\n";
+}
+
 void svg::text(stream &os, const TextParams &p, const std::string &text) {
-  os << "<text ";
+  os << "\t<text ";
   os << "x=\"" << p.x << "\" ";
   os << "y=\"" << p.y << "\" ";
   os << "font-size=\"" << p.font_size << "px\">";
   os << text;
-  os << "</text>";
+  os << "</text>\n";
 }
 
 } // namespace kami::out

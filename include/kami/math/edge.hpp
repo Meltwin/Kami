@@ -59,11 +59,22 @@ public:
   }
 
   /**
+   * @brief Return the point of parameter t on this edge by a linear
+   * interpolation from v1 to v2.
+   *
+   * @param t the interpolation parameter
+   * @return the resulting point
+   */
+  inline Vertex lin_interpolation(double t) const {
+    return (Vec4)(t * v1 + (1 - t) * v2);
+  }
+
+  /**
    * @brief Get the bounds needed to display this edge
    */
-  Bounds getBounds() const;
+  virtual Bounds getBounds() const;
 
-  void transformEdge(const math::HMat &mat) {
+  virtual void transformEdge(const math::HMat &mat) {
     v1 = (math::Vec4)(mat * v1);
     v2 = (math::Vec4)(mat * v2);
   }

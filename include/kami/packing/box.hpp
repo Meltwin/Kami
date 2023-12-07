@@ -16,6 +16,7 @@ template <typename T> struct Box {
   Box(const Box &other)
       : id(other.id), root(other.root), width(other.width),
         height(other.height), x(other.x), y(other.y), rotated(other.rotated) {}
+  Box() {}
 
   int id = -1;
   T *root = nullptr;

@@ -17,6 +17,8 @@ struct Vertex : public Vec4 {
       : Vec4{mnormal.x, mnormal.y, mnormal.z, 1} {}
   Vertex(double x, double y, double z, double w = 1) : Vec4{x, y, z, w} {}
   Vertex(const Vec4 &other) : Vec4(other) {}
+  Vertex(const Vec3 &other) : Vec4({other(0), other(1), other(2), 0}) {}
+  Vertex() : Vec4({0, 0, 0, 0}) {}
 
   /**
    * @brief Check whether two vertices are considered the same (close enough

@@ -1,7 +1,13 @@
+#include "kami/mesh/linked_poly.hpp"
 #include "kami/export/line_settings.hpp"
 #include "kami/global/arguments.hpp"
+#include "kami/math/base_types.hpp"
 #include "kami/math/edge.hpp"
-#include "kami/mesh/linked_poly.hpp"
+#include "kami/math/vertex.hpp"
+#include "kami/mesh/linked_edge.hpp"
+
+#define _USE_MATH_DEFINES
+#include <cmath>
 
 namespace kami {
 
@@ -171,6 +177,12 @@ bool LinkedPolygon::hasSameEdge(LinkedPolygon *parent_facet, int edge) {
   for (int i = 0; i < n_edges; i++) {
     if (facets[i].sameAs(pair)) {
       facets[i].setMesh(parent_facet);
+
+      // Linking edge number
+      parent_facet->getEdge(edge).setOtherEdge(i);
+      facets[i].setOtherEdge(edge);
+
+      // Change ownership
       if (parent_edge == INT8_MAX) {
         facets[i].setLineStyle(LineStyle::INNER);
         parent_edge = (parent_edge == INT8_MAX) ? i : parent_edge;
@@ -287,13 +299,128 @@ LinkedPolygon::sliceChildren(const LinkedPool &pool,
 }
 
 // ==========================================================================
-// STL Model Unfold + SVG Export
+// Fixations
+// ==========================================================================
+
+LinkedPolygon::EdgeInfos LinkedPolygon::getEdgeInfoFixations(
+    const LinkedEdge<LinkedPolygon> &edge) const {
+  EdgeInfos infos;
+
+  // If not owned, return empty result
+  if (!edge.isOwned())
+    return infos;
+
+  auto other = edge.getMesh()->getParentEdge();
+
+  infos.u = edge.dir();
+  infos.v = other.dir();
+
+  // Get directions
+  if ((math::Vertex::distance2(edge.getFirst(), other.getFirst()) <
+       math::MAX_DISTANCE2) ||
+      (math::Vertex::distance2(edge.getFirst(), other.getSecond()) <
+       math::MAX_DISTANCE2)) {
+    infos.P = edge.getFirst();
+    infos.has_common_point = true;
+
+  } else if ((math::Vertex::distance2(edge.getSecond(), other.getSecond()) <
+              math::MAX_DISTANCE2) ||
+             (math::Vertex::distance2(edge.getSecond(), other.getFirst()) <
+              math::MAX_DISTANCE2)) {
+    infos.P = edge.getSecond();
+    infos.has_common_point = true;
+  }
+
+  // Get angle
+  double norm = infos.u.norm() * infos.v.norm();
+  double cos = (infos.u(0) * infos.v(0) + infos.u(1) * infos.v(1)) / norm;
+  double sin = (infos.u(1) * infos.v(0) + infos.u(0) * infos.v(1)) / norm;
+  infos.angle = std::atan2(sin, cos);
+
+  return infos;
+}
+
+void LinkedPolygon::makeGlueFixations(const fix::FixationParameters &params,
+                                      ulong caller_edge) {
+  auto &caller = getEdge(caller_edge);
+  auto &other = getOtherEdge(caller_edge);
+
+  // Make P1 (center of segment)
+  caller.addFixPoint(caller.lin_interpolation(0));
+  other.addFixPoint(other.lin_interpolation(0));
+}
+
+void LinkedPolygon::makeClipFixations(const fix::FixationParameters &params,
+                                      ulong caller_edge) {
+  auto &caller = getEdge(caller_edge);
+  auto &other = getOtherEdge(caller_edge);
+
+  // Make P1 (center of segment)
+  caller.addFixPoint(caller.lin_interpolation(0.5));
+  other.addFixPoint(other.lin_interpolation(0.3));
+
+  // Make P2 (return to the limit for the clip)
+  caller.addFixPoint(caller.lin_interpolation(params.clip_limits));
+  // other.addFixPoint(other.lin_interpolation(1 - params.clip_limits));
+
+  // Make Y vector for both edges
+  auto y_caller = getEdgeYAxis(caller_edge);
+  auto y_other = caller.getMesh()->getEdgeYAxis(caller.getOtherEdge());
+
+  // Make P3 (first point out)
+  caller.addFixPoint((math::Vec4)(
+      caller.lin_interpolation(params.clip_limits +
+                               params.height / caller.dir().norm()) +
+      params.height * y_caller));
+  /*other.addFixPoint((math::Vec4)(
+      other.lin_interpolation(1 - params.clip_limits - params.height) +
+      params.height * other.dir().norm() * y_other));*/
+
+  // Make P4 (second point out)
+  caller.addFixPoint((math::Vec4)(
+      caller.lin_interpolation(1 - params.clip_limits -
+                               params.height / caller.dir().norm()) +
+      params.height * y_caller));
+  /*other.addFixPoint(
+      (math::Vec4)(other.lin_interpolation(params.clip_limits + params.height) +
+                   params.height * other.dir().norm() * y_other));*/
+
+  // Make P5
+  caller.addFixPoint(caller.lin_interpolation(1 - params.clip_limits));
+  // other.addFixPoint(other.lin_interpolation(params.clip_limits));
+}
+
+void LinkedPolygon::makeFixations(const fix::FixationParameters &params) {
+  // Call recursively
+  for (ulong i = 0; i < facets.size(); i++) {
+
+    // Make the fixation
+    if (!facets[i].isOwned() && !facets[i].hasFixations() &&
+        !facets[i].isInner()) {
+      auto infos = getEdgeInfoFixations(facets[i]);
+
+      if (!facets[i].hasCut() && infos.has_common_point &&
+          (infos.angle <= M_PI_2))
+        makeGlueFixations(params, i);
+      else
+        makeClipFixations(params, i);
+    }
+
+    if (facets[i].isOwned()) {
+      // Recursive call on the children
+      facets[i].getMesh()->makeFixations(params);
+    }
+  }
+}
+
+// ==========================================================================
+// SVG Export
 // ==========================================================================
 
 void LinkedPolygon::fillSVGString(std::stringstream &stream,
-                                  const math::HMat &mat, int depth,
-                                  int max_depth) {
-  if (max_depth != -1 && depth >= max_depth)
+                                  const math::HMat &mat, const args::Args &args,
+                                  int depth) {
+  if (args.max_depth != -1 && depth >= args.max_depth)
     return;
 
   transform(mat, false, true);
@@ -301,13 +428,13 @@ void LinkedPolygon::fillSVGString(std::stringstream &stream,
   // Draw this facet
   for (int i = 0; i < n_edges; i++) {
     facets[i].setTextRatio(mat(2, 2));
-    facets[i].getAsSVGLine(stream);
+    facets[i].getAsSVGLine(stream, args);
   }
 
   // Call the children
   for (int i = 0; i < n_edges; i++) {
     if (facets[i].isOwned() && !facets[i].hasCut()) {
-      facets[i].getMesh()->fillSVGString(stream, mat, depth + 1, max_depth);
+      facets[i].getMesh()->fillSVGString(stream, mat, args, depth + 1);
     }
   }
 };

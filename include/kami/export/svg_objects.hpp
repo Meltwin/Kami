@@ -35,6 +35,31 @@ public:
 void line(stream &, const LineParams &);
 
 // ==========================================================================
+// Circle
+// ==========================================================================
+
+/**
+ * @brief Structure containing the parameters for drawing a SVG line
+ *
+ */
+struct CircleParams {
+private:
+  double x, y, r;
+
+  LineStyle style;
+
+public:
+  CircleParams(double _x, double _y, double _r, LineStyle _style)
+      : x(_x), y(_y), r(_r), style(_style) {}
+  friend void circle(stream &, const CircleParams &);
+};
+
+/**
+ * @brief Add a line in the given SVG stream
+ */
+void circle(stream &, const CircleParams &);
+
+// ==========================================================================
 // Text
 // ==========================================================================
 
