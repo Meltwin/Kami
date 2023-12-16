@@ -22,7 +22,6 @@
 #include <memory>
 #include <vector>
 
-
 namespace kami {
 
 // ==========================================================================
@@ -35,7 +34,6 @@ class LinkedPolygon {
 public:
   LinkedPolygon(int N = 3) : n(math::Vertex(0, 0, 0)) {
     facets = std::vector<LinkedEdge<LinkedPolygon>>(N);
-    n_edges = N;
   }
 
   // ==========================================================================
@@ -84,6 +82,12 @@ public:
    */
   std::vector<ulong> linkNeighbours(LinkedPool &pool);
 
+  /**
+   * @brief Merge the facets with owned child facets with the same normal
+   *
+   */
+  void mergeSimilar(LinkedPool &pool, std::vector<ulong> &removed);
+
   // ==========================================================================
   // Sclicing logic
   // ==========================================================================
@@ -119,7 +123,6 @@ protected:
   // Facet description
   // ==========================================================================
   // Facet properties
-  ulong n_edges;                                 //< The number of edges
   ulong uid;                                     //< The UID if this facet
   std::vector<LinkedEdge<LinkedPolygon>> facets; //< Edges of this facet
   int parent_edge = INT8_MAX;                    //< Edge to the parent
@@ -137,7 +140,7 @@ protected:
    * @brief Get the edge corresponding to this number
    */
   inline LinkedEdge<LinkedPolygon> getEdge(int edge) const {
-    if (edge < n_edges)
+    if (edge < facets.size())
       return facets[edge];
     return facets[0];
   };
@@ -147,7 +150,7 @@ protected:
    */
   inline std::string getEdgeName(int edge) const {
     std::stringstream ss;
-    ss << "f" << edge + 1 << ((edge == n_edges - 1) ? 1 : edge + 2);
+    ss << "f" << edge + 1 << ((edge == facets.size() - 1) ? 1 : edge + 2);
     return ss.str();
   };
 
@@ -157,7 +160,7 @@ protected:
    * @return a pointer to the parent if exist, else nullptr
    */
   inline const LinkedPolygon *getParent() const {
-    if (parent_edge < n_edges)
+    if (parent_edge < facets.size())
       return facets[parent_edge].getMesh();
     return nullptr;
   };
@@ -265,7 +268,7 @@ protected:
    * @return true if the two facets are neighbours
    * @return false if they are not neighbours
    */
-  bool hasSameEdge(LinkedPolygon *parent_facet, int edge);
+  bool hasSameEdge(LinkedPolygon *parent_facet, int edge, int &on_edge);
 
   // ==========================================================================
   // Sclicing logic
@@ -296,18 +299,17 @@ protected:
   // Debug
   // ==========================================================================
   void displayInformations(std::ostream &os) const {
-    os << "Mesh " << uid << " : " << std::endl;
-    for (int i = 0; i < n_edges; i++) {
-      os << "  - f" << i + 1 << ((i == n_edges - 1) ? 1 : i + 2) << " "
+    os << "\tMesh " << uid << " : " << std::endl;
+    for (int i = 0; i < facets.size(); i++) {
+      os << "\t  - f" << i + 1 << ((i == facets.size() - 1) ? 1 : i + 2) << " "
          << facets[i] << std::endl;
     }
   };
 
   friend std::ostream &operator<<(std::ostream &os, const LinkedPolygon &mesh) {
-    os << "Mesh " << mesh.uid << " : " << std::endl;
     mesh.displayInformations(os);
-    os << "  - Normal [" << mesh.n(0) << ", " << mesh.n(1) << ", " << mesh.n(2)
-       << "]" << std::endl;
+    os << "\t  - Normal [" << mesh.n(0) << ", " << mesh.n(1) << ", "
+       << mesh.n(2) << "]" << std::endl;
     return os;
   }
 };

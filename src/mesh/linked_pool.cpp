@@ -1,8 +1,11 @@
 #include "kami/mesh/linked_pool.hpp"
 #include "kami/global/arguments.hpp"
+#include "kami/global/logging.hpp"
 #include "kami/mesh/linked_implementations.hpp"
 #include "kami/mesh/linked_poly.hpp"
+#include <algorithm>
 #include <cmath>
+#include <memory>
 #include <sstream>
 #include <vector>
 
@@ -24,13 +27,42 @@ LinkedMeshPool::LinkedMeshPool(microstl::Mesh &mesh)
 // ==========================================================================
 
 void LinkedMeshPool::makeFacetPoolInternalLink() {
-  ulong index = 0;
-  std::vector<ulong> stack{0};
-  while ((index < stack.size()) && (index < this->size())) {
-    auto created = (*this)[stack[index]]->linkNeighbours(*this);
-    stack.insert(stack.end(), created.begin(), created.end());
-    index++;
-  }
+  TIMED_UTILS;
+  TIMED_SECTION("Mesh preparation", {
+    // Merging facets of same normal
+    printStepHeader("Merging facets of same direction");
+    std::vector<ulong> removed(0);
+    for (auto &poly : *this) {
+      if (auto it = std::find_if(
+              removed.begin(), removed.end(),
+              [&poly](ulong &other) { return other == poly->getUID(); });
+          it == removed.end()) {
+        poly->mergeSimilar(*this, removed);
+      }
+    }
+
+    // Remove all faces that have been merged from the pool
+    printStepHeader("Removing merged faces");
+    for (const auto &uid : removed) {
+      if (auto it = std::find_if(this->begin(), this->end(),
+                                 [&uid](std::shared_ptr<LinkedPolygon> &poly) {
+                                   return poly->getUID() == uid;
+                                 });
+          it != this->end()) {
+        this->erase(it);
+      }
+    }
+
+    // Linking every facet
+    printStepHeader("Mesh Linking");
+    ulong index = 0;
+    std::vector<ulong> stack{0};
+    while ((index < stack.size()) && (index < this->size())) {
+      auto created = (*this)[stack[index]]->linkNeighbours(*this);
+      stack.insert(stack.end(), created.begin(), created.end());
+      index++;
+    }
+  })
 }
 
 // ==========================================================================
@@ -39,25 +71,32 @@ void LinkedMeshPool::makeFacetPoolInternalLink() {
 
 MeshBinVector LinkedMeshPool::slice() {
   MeshBoxVector boxes;
-  (*this)[root]->sliceChildren(*this, boxes);
 
-  // Transforming the root
-  auto b = (*this)[root]->getBounds(true, true);
-  math::HMat mat;
-  mat.setTransAsAxis(math::Vec3{-b.xmin, -b.ymin, 0});
-  (*this)[root]->transform(mat, true, true);
+  TIMED_UTILS;
+  TIMED_SECTION("Mesh slicing", {
+    (*this)[root]->sliceChildren(*this, boxes);
 
-  // Adding the root to the list
-  boxes.push_back(MeshBox((*this)[root].get(), (*this)[root]->getBounds(true)));
+    // Transforming the root
+    auto b = (*this)[root]->getBounds(true, true);
+    math::HMat mat;
+    mat.setTransAsAxis(math::Vec3{-b.xmin, -b.ymin, 0});
+    (*this)[root]->transform(mat, true, true);
 
-  // Debug
-  std::cout << "Got " << boxes.size() << " parts for this mesh" << std::endl;
-  for (auto &b : boxes) {
-    std::cout << "\t" << b << std::endl;
-  }
+    // Adding the root to the list
+    boxes.push_back(
+        MeshBox((*this)[root].get(), (*this)[root]->getBounds(true)));
+
+    printStepHeader("Slicing result");
+    std::cout << "Got " << boxes.size() << " parts for this mesh" << std::endl;
+    for (auto &b : boxes) {
+      std::cout << "\t" << b << std::endl;
+    }
+  });
 
   // Launch the bin packing
-  return binPackingAlgorithm(boxes);
+  MeshBinVector bins;
+  TIMED_SECTION("Paper box packing", bins = binPackingAlgorithm(boxes));
+  return bins;
 }
 
 MeshBinVector LinkedMeshPool::binPackingAlgorithm(MeshBoxVector &boxes) {
@@ -221,7 +260,7 @@ void LinkedMeshPool::printInformations() const {
     if (!facet.f12.owned && !facet.f23.owned && !facet.f31.owned)
       non_owning++;
   }*/
-  std::cout << "Pool Informations" << std::endl;
+  printStepHeader("Pool Informations");
   std::cout << "\tSolo facets = " << solo << std::endl;
   std::cout << "\tNon Owning facets = " << non_owning << std::endl;
 }

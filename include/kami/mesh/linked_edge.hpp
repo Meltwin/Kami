@@ -4,6 +4,7 @@
 #include "kami/export/line_settings.hpp"
 #include "kami/export/svg_objects.hpp"
 #include "kami/math/edge.hpp"
+#include "kami/math/vertex.hpp"
 #include <sstream>
 
 namespace kami {
@@ -21,7 +22,9 @@ using namespace out;
  */
 template <typename T> class LinkedEdge : public math::Edge {
 public:
-  LinkedEdge(microstl::Vertex _v1, microstl::Vertex _v2) : Edge(_v1, _v2) {}
+  LinkedEdge(microstl::Vertex &_v1, microstl::Vertex &_v2) : Edge(_v1, _v2) {}
+  LinkedEdge(math::Vertex &_v1, math::Vertex &_v2) : Edge(_v1, _v2) {}
+  LinkedEdge(math::VertexPair &_p) : Edge(_p.first, _p.second) {}
   LinkedEdge() : Edge() {}
 
   // ==========================================================================
@@ -37,6 +40,10 @@ public:
       linestyle = LineStyle::CUTTED;
     }
   }
+  void setOwned(bool t) { owned = t; }
+
+  void setLinkedOnChildEdge(ulong v) { linked_on_child_edge = v; }
+  ulong getLinkedOnChildEdge() { return linked_on_child_edge; }
 
   int getCutNumber() { return cut_number; }
   void setLineStyle(LineStyle _style) { linestyle = _style; }
@@ -78,7 +85,7 @@ public:
        << "]";
     if (edge.mesh != nullptr) {
       os << " ->" << ((edge.owned) ? " OWNING" : "") << " Mesh "
-         << edge.mesh->getUID() << " on its " << edge.mesh->getParentEdgeName()
+         << edge.mesh->getUID() << " on its " << edge.linked_on_child_edge
          << " edge";
     }
 
@@ -100,6 +107,7 @@ private:
   int cut_number = -1;
   double text_size = 2;
   T *mesh = nullptr;
+  ulong linked_on_child_edge = 0;
 
   // Style
   out::LineStyle linestyle = out::LineStyle::PERIMETER;
