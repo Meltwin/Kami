@@ -3,6 +3,7 @@
 
 #include "kami/math/base_types.hpp"
 #include "microstl/microstl.hpp"
+#include <iostream>
 
 namespace kami::math {
 /**
@@ -91,7 +92,11 @@ struct Vertex : public Vec4 {
   operator Vec3() const { return Vec3{(*this)(0), (*this)(1), (*this)(2)}; }
 };
 
-typedef std::pair<Vertex, Vertex> VertexPair;
+struct VertexPair : public std::pair<Vertex, Vertex> {
+  VertexPair() : std::pair<Vertex, Vertex>(Vertex(0, 0, 0), Vertex(0, 0, 0)) {}
+  VertexPair(const Vertex &v1, const Vertex &v2)
+      : std::pair<Vertex, Vertex>(v1, v2) {}
+};
 } // namespace kami::math
 
 #endif

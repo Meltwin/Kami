@@ -3,6 +3,7 @@
 
 #include "kami/export/paper_format.hpp"
 #include "kami/global/arguments.hpp"
+#include "kami/global/logging.hpp"
 #include "kami/mesh/linked_poly.hpp"
 #include "kami/packing/bin.hpp"
 #include "kami/packing/box.hpp"
@@ -53,7 +54,11 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<LinkedPolygon>> {
    *
    * @param max_depth the maximum of recursivity (-1 for no limit)
    */
-  void unfold(ulong max_depth) { (*this)[root]->unfoldMesh(0, max_depth); }
+  void unfold(ulong max_depth) {
+    TIMED_UTILS;
+    TIMED_SECTION("Unfolding the linked mesh",
+                  (*this)[root]->unfoldMesh(0, max_depth));
+  }
 
   /**
    * @brief Rescale the figure into the world by the given factor.
@@ -61,11 +66,14 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<LinkedPolygon>> {
    * @param scaling_factor the scaling factor to apply
    */
   void scaleFigure(double scaling_factor) {
-    math::HMat mat;
-    mat(0, 0) = scaling_factor;
-    mat(1, 1) = scaling_factor;
-    mat(2, 2) = scaling_factor;
-    (*this)[root]->transform(mat, true, false);
+    TIMED_UTILS;
+    TIMED_SECTION("Rescaling the mesh", {
+      math::HMat mat;
+      mat(0, 0) = scaling_factor;
+      mat(1, 1) = scaling_factor;
+      mat(2, 2) = scaling_factor;
+      (*this)[root]->transform(mat, true, false);
+    });
   }
 
   // ==========================================================================
@@ -117,10 +125,11 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<LinkedPolygon>> {
 
   friend std::ostream &operator<<(std::ostream &os,
                                   const LinkedMeshPool &pool) {
-    os << "Pool : " << std::endl;
+    printStepHeader("Pool faces");
+    os << "    Number of faces : " << pool.size() << std::endl;
     for (const std::shared_ptr<LinkedPolygon> mesh : pool) {
       os << *mesh;
-    }
+    } 
     return os;
   }
 

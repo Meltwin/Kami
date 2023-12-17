@@ -1,7 +1,10 @@
+#include "kami/mesh/linked_poly.hpp"
 #include "kami/export/line_settings.hpp"
 #include "kami/global/arguments.hpp"
 #include "kami/math/edge.hpp"
-#include "kami/mesh/linked_poly.hpp"
+#include "kami/math/vertex.hpp"
+#include "kami/mesh/linked_edge.hpp"
+#include <algorithm>
 
 namespace kami {
 
@@ -12,11 +15,11 @@ namespace kami {
 const math::Bounds LinkedPolygon::getBounds(bool recursive,
                                             bool stop_on_cut) const {
   math::Bounds b;
-  for (int i = 0; i < n_edges; i++)
+  for (int i = 0; i < facets.size(); i++)
     b += facets[i].getBounds();
 
   if (recursive) {
-    for (int i = 0; i < n_edges; i++) {
+    for (int i = 0; i < facets.size(); i++) {
       if ((facets[i].isOwned()) && (!stop_on_cut || !facets[i].hasCut()))
         b += facets[i].getMesh()->getBounds(recursive, stop_on_cut);
     }
@@ -26,7 +29,7 @@ const math::Bounds LinkedPolygon::getBounds(bool recursive,
 
 const void LinkedPolygon::getBarycenter(math::Barycenter &bary, bool recursive,
                                         bool stop_on_cut) const {
-  for (int i = 0; i < n_edges; i++) {
+  for (int i = 0; i < facets.size(); i++) {
     bary.addVertex(facets[i].getFirst());
     if (recursive && facets[i].isOwned() &&
         (!stop_on_cut || !facets[i].hasCut()))
@@ -88,12 +91,12 @@ void LinkedPolygon::transform(const math::HMat &mat, bool recusive,
                               bool stop_on_cut) {
 
   // Transform facets
-  for (int i = 0; i < n_edges; i++)
+  for (int i = 0; i < facets.size(); i++)
     facets[i].transformEdge(mat);
 
   // Transmit the transformation to the children
   if (recusive) {
-    for (int i = 0; i < n_edges; i++) {
+    for (int i = 0; i < facets.size(); i++) {
       if (facets[i].isOwned() && (!stop_on_cut || !facets[i].hasCut()))
         facets[i].getMesh()->transform(mat, recusive, stop_on_cut);
     }
@@ -117,7 +120,7 @@ void LinkedPolygon::unfoldMesh(long depth, long max_depth) {
   transform(unfold_coef, false, false);
 
   // Rotate children
-  for (int i = 0; i < n_edges; i++) {
+  for (int i = 0; i < facets.size(); i++) {
     if (facets[i].isOwned())
       facets[i].getMesh()->unfoldMesh(depth + 1, max_depth);
   }
@@ -133,10 +136,71 @@ void LinkedPolygon::unfoldMesh(long depth, long max_depth) {
 // Linking logic
 // ==========================================================================
 
+void LinkedPolygon::mergeSimilar(LinkedPool &pool,
+                                 std::vector<ulong> &removed) {
+  std::vector<math::VertexPair> new_facets;
+  new_facets.resize(0);
+
+  // Construct from this edge
+  for (auto &f : facets)
+    new_facets.push_back(math::VertexPair{f.getFirst(), f.getSecond()});
+
+  // Iterate over the other to check for faces that are adjacents and have the
+  // same dir
+  for (auto &poly : pool) {
+    // Prevent for self computation
+    if (poly->uid == uid) {
+      continue;
+    }
+
+    // If same normal, check for proximity
+    if (math::Edge::colinear(n, poly->n)) {
+      bool done = false;
+      for (ulong oth_idx = 0; !done && oth_idx < poly->facets.size();
+           oth_idx++) {
+        if (auto it = std::find_if(new_facets.begin(), new_facets.end(),
+                                   [&poly, &oth_idx](math::VertexPair &pair) {
+                                     return poly->facets[oth_idx].sameAs(pair);
+                                   });
+            it != new_facets.end()) {
+          new_facets.erase(it);
+          for (ulong i = 0; i < poly->facets.size(); i++) {
+            if (i != oth_idx)
+              new_facets.insert(it++,
+                                math::VertexPair{poly->facets[i].getFirst(),
+                                                 poly->facets[i].getSecond()});
+          }
+          done = true;
+        }
+      }
+
+      if (done) {
+        removed.push_back(poly->uid);
+      }
+    }
+  }
+
+  // Update facets with the new edges
+  facets.resize(0);
+  for (auto &p : new_facets) {
+    if (auto it = std::find_if(new_facets.begin(), new_facets.end(),
+                               [&p](math::VertexPair &other) {
+                                 return p.first.sameAs(other.second) &&
+                                        p.second.sameAs(other.first);
+                               });
+        it == new_facets.end()) {
+      facets.push_back([&p]() {
+        LinkedEdge<LinkedPolygon> edge(p);
+        return edge;
+      }());
+    }
+  }
+}
+
 std::vector<ulong> LinkedPolygon::linkNeighbours(LinkedPool &pool) {
   unsigned int done = 0;
   unsigned int max = 0;
-  for (int i = 0; i < n_edges; i++) {
+  for (int i = 0; i < facets.size(); i++) {
     done |= ((facets[i].nullMesh()) ? 0 : (int)(std::pow(2, i)));
     max |= (unsigned int)std::pow(2, i);
   }
@@ -147,9 +211,11 @@ std::vector<ulong> LinkedPolygon::linkNeighbours(LinkedPool &pool) {
       continue;
 
     bool unlinked_facet = (pool[i]->parent_edge == INT8_MAX);
-    for (int f = 0; f < n_edges; f++) {
-      if (facets[f].nullMesh() && pool[i]->hasSameEdge(this, f)) {
+    for (int f = 0; f < facets.size(); f++) {
+      int on_edge = 0;
+      if (facets[f].nullMesh() && pool[i]->hasSameEdge(this, f, on_edge)) {
         facets[f].linkEdgeAsOwner(pool[i].get(), unlinked_facet);
+        facets[f].setLinkedOnChildEdge(on_edge);
         if (unlinked_facet)
           created.push_back(i);
         done |= (unsigned int)std::pow(2, f);
@@ -164,13 +230,16 @@ std::vector<ulong> LinkedPolygon::linkNeighbours(LinkedPool &pool) {
   return created;
 }
 
-bool LinkedPolygon::hasSameEdge(LinkedPolygon *parent_facet, int edge) {
+bool LinkedPolygon::hasSameEdge(LinkedPolygon *parent_facet, int edge,
+                                int &on_edge) {
   // Get the vertex we want to find
   auto pair = parent_facet->getEdgeVertex(edge);
 
-  for (int i = 0; i < n_edges; i++) {
+  for (int i = 0; i < facets.size(); i++) {
     if (facets[i].sameAs(pair)) {
       facets[i].setMesh(parent_facet);
+      facets[i].setLinkedOnChildEdge(edge);
+      on_edge = i;
       if (parent_edge == INT8_MAX) {
         facets[i].setLineStyle(LineStyle::INNER);
         parent_edge = (parent_edge == INT8_MAX) ? i : parent_edge;
@@ -237,29 +306,29 @@ overlaps::MeshOverlaps
 LinkedPolygon::sliceChildren(const LinkedPool &pool,
                              std::vector<packing::Box<LinkedPolygon>> &boxes) {
   // Populate overlaps
-  std::vector<overlaps::MeshOverlaps> overlaps(n_edges + 1);
-  for (int i = 0; i < n_edges; i++) {
+  std::vector<overlaps::MeshOverlaps> overlaps(facets.size() + 1);
+  for (int i = 0; i < facets.size(); i++) {
     overlaps[i] = (facets[i].isOwned() && !facets[i].nullMesh())
                       ? facets[i].getMesh()->sliceChildren(pool, boxes)
                       : overlaps::MeshOverlaps();
   }
-  overlaps[n_edges] = hasOverlaps(pool);
+  overlaps[facets.size()] = hasOverlaps(pool);
 
   // TODO: Remove, it's debug
-  std::cout << "Overlaps for " << uid << std::endl;
-  for (int i = 0; i < n_edges; i++) {
-    std::cout << "\t - " << getEdgeName(i) << " has " << overlaps[i].size()
+  std::cout << "\tOverlaps for " << uid << std::endl;
+  for (int i = 0; i < facets.size(); i++) {
+    std::cout << "\t   - " << getEdgeName(i) << " has " << overlaps[i].size()
               << " overlaps" << std::endl;
   }
-  std::cout << "\t - It has " << overlaps[n_edges].size() << " overlaps"
-            << std::endl;
+  std::cout << "\t     - It has " << overlaps[facets.size()].size()
+            << " overlaps" << std::endl;
 
   // Check the edges against the others
-  for (int i = 0; i < n_edges; i++) {
+  for (int i = 0; i < facets.size(); i++) {
 
     // Compute the intersection of the overlapping vector
     overlaps::MeshOverlaps intersection;
-    for (int j = i + 1; j <= n_edges; j++) {
+    for (int j = i + 1; j <= facets.size(); j++) {
       intersection = intersection + overlaps[i] / overlaps[j];
     }
 
@@ -270,7 +339,7 @@ LinkedPolygon::sliceChildren(const LinkedPool &pool,
           facets[i].getMesh(),
           facets[i].getMesh()->getBounds(true, true),
       });
-      for (int k = 0; k < n_edges; k++) {
+      for (int k = 0; k < facets.size(); k++) {
         overlaps[k] = overlaps[k] - overlaps[i];
       }
     }
@@ -279,7 +348,7 @@ LinkedPolygon::sliceChildren(const LinkedPool &pool,
   // Recontruct the new overlapping vector (sum of all the overlapings without
   // the ones processed by this node)
   overlaps::MeshOverlaps new_overlaps;
-  for (int i = 0; i <= n_edges; i++) {
+  for (int i = 0; i <= facets.size(); i++) {
     new_overlaps = new_overlaps + overlaps[i];
   }
 
@@ -299,13 +368,13 @@ void LinkedPolygon::fillSVGString(std::stringstream &stream,
   transform(mat, false, true);
 
   // Draw this facet
-  for (int i = 0; i < n_edges; i++) {
+  for (int i = 0; i < facets.size(); i++) {
     facets[i].setTextRatio(mat(2, 2));
     facets[i].getAsSVGLine(stream);
   }
 
   // Call the children
-  for (int i = 0; i < n_edges; i++) {
+  for (int i = 0; i < facets.size(); i++) {
     if (facets[i].isOwned() && !facets[i].hasCut()) {
       facets[i].getMesh()->fillSVGString(stream, mat, depth + 1, max_depth);
     }
