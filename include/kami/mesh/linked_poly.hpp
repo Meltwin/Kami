@@ -51,6 +51,12 @@ public:
 
   std::string getParentEdgeName() const { return getEdgeName(parent_edge); }
 
+  /**
+   * @brief Get the barycenter of the children of this facet and itself.
+   */
+  const void getBarycenter(math::Barycenter &bary, bool recursive,
+                           bool stop_on_cut = true) const;
+
   // ==========================================================================
   // Transformations
   // ==========================================================================
@@ -118,6 +124,17 @@ public:
   void fillSVGString(std::stringstream &stream, const math::HMat &mat,
                      int depth, int max_depth);
 
+  /**
+   * @brief Fill the given stringstream with the serialized version of this
+   * facet. Project the vertex onto the two given axis and with the given color.
+   * This function is *not* called recursively.
+   *
+   * @param stream the string stream to fill
+   * @param mat the transformation matrix to apply
+   */
+  void fillSVGProjectString(std::stringstream &stream, const math::HMat &mat,
+                            const math::Vec3 &ax1, const math::Vec3 &ax2);
+
 protected:
   // ==========================================================================
   // Facet description
@@ -164,12 +181,6 @@ protected:
       return facets[parent_edge].getMesh();
     return nullptr;
   };
-
-  /**
-   * @brief Get the barycenter of the children of this facet and itself.
-   */
-  const void getBarycenter(math::Barycenter &bary, bool recursive,
-                           bool stop_on_cut = true) const;
 
   // ==========================================================================
   // Vertex utils

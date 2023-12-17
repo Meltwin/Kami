@@ -6,13 +6,16 @@ namespace kami::math {
 
 Bounds Edge::getBounds() const {
   auto b = Bounds(std::min(v1(0), v2(0)), std::max(v1(0), v2(0)),
-                  std::min(v1(1), v2(1)), std::max(v1(1), v2(1)));
+                  std::min(v1(1), v2(1)), std::max(v1(1), v2(1)),
+                  std::min(v1(2), v2(2)), std::min(v1(2), v2(2)));
 
   // Adding padding
   b.xmin += ((b.xmin < 0) ? 1 : -1) * out::BOUNDS_PADDING * b.xmin;
   b.xmax += ((b.xmax < 0) ? -1 : 1) * out::BOUNDS_PADDING * b.xmax;
   b.ymin += ((b.ymin < 0) ? 1 : -1) * out::BOUNDS_PADDING * b.ymin;
   b.ymax += ((b.ymax < 0) ? -1 : 1) * out::BOUNDS_PADDING * b.ymax;
+  b.zmin += ((b.zmin < 0) ? 1 : -1) * out::BOUNDS_PADDING * b.zmin;
+  b.zmax += ((b.zmax < 0) ? -1 : 1) * out::BOUNDS_PADDING * b.zmax;
   return b;
 }
 

@@ -1,6 +1,9 @@
 #include "kami/mesh/linked_pool.hpp"
 #include "kami/global/arguments.hpp"
 #include "kami/global/logging.hpp"
+#include "kami/math/barycenter.hpp"
+#include "kami/math/bounds.hpp"
+#include "kami/math/hmat.hpp"
 #include "kami/mesh/linked_implementations.hpp"
 #include "kami/mesh/linked_poly.hpp"
 #include <algorithm>
@@ -20,6 +23,7 @@ LinkedMeshPool::LinkedMeshPool(microstl::Mesh &mesh)
   for (ulong i = 0; i < mesh.facets.size(); i++) {
     (*this)[i] = std::make_shared<LinkedTriangle>(&mesh.facets[i], i);
   }
+  this->makeFacetPoolInternalLink();
 }
 
 // ==========================================================================
@@ -53,6 +57,11 @@ void LinkedMeshPool::makeFacetPoolInternalLink() {
       }
     }
 
+    // Backuping everything
+    for (auto &f : *this) {
+      _unfold_unlinked.push_back(*f.get());
+    }
+
     // Linking every facet
     printStepHeader("Mesh Linking");
     ulong index = 0;
@@ -62,6 +71,8 @@ void LinkedMeshPool::makeFacetPoolInternalLink() {
       stack.insert(stack.end(), created.begin(), created.end());
       index++;
     }
+
+    _unfolded_bounds += (*this)[root]->getBounds(true);
   })
 }
 
@@ -243,6 +254,77 @@ std::string LinkedMeshPool::getAsSVGString(MeshBin &bin,
     }
   }
   ss << "</svg>";
+  return ss.str();
+}
+
+// ==========================================================================
+// Projections
+// ==========================================================================
+
+struct ProjectionOrder {
+  ulong uid;
+  double value;
+};
+
+std::string LinkedMeshPool::getProjectionAsString(const math::Vec3 &ax1,
+                                                  const math::Vec3 &ax2,
+                                                  const args::Args &args) {
+  auto normal = ax1.cross(ax2);
+
+  // Get the bounds of the figure
+  math::Bounds fig_bounds;
+  math::Vec3 pt;
+  double on1, on2;
+  for (char pi = 0; pi < 8; pi++) {
+    pt = math::Vec3{
+        ((pi & 0x01) == 0x01) ? _unfolded_bounds.xmin : _unfolded_bounds.xmax,
+        ((pi & 0x02) == 0x02) ? _unfolded_bounds.ymin : _unfolded_bounds.ymax,
+        ((pi & 0x04) == 0x04) ? _unfolded_bounds.zmin : _unfolded_bounds.zmax,
+    };
+    std::cout << "\tPoint " << +pi << " " << pt(0) << ", " << pt(1) << ", "
+              << pt(2) << std::endl;
+    on1 = pt.dot(ax1);
+    on2 = pt.dot(ax2);
+    fig_bounds += math::Bounds{on1, on1, on2, on2, 0, 0};
+  }
+
+  // Get the order
+  std::vector<ProjectionOrder> order(_unfold_unlinked.size());
+  for (ulong i = 0; i < _unfold_unlinked.size(); i++) {
+    math::Barycenter bary;
+    _unfold_unlinked[i].getBarycenter(bary, false);
+    math::Vec3 bary3 = bary.getBarycenter();
+    order[i] = ProjectionOrder{_unfold_unlinked[i].getUID(), bary3.dot(normal)};
+  }
+
+  // Get the order
+  std::sort(order.begin(), order.end(),
+            [](ProjectionOrder &p1, ProjectionOrder &p2) {
+              return p1.value < p2.value;
+            });
+
+  // Get transform matrix
+  math::HMat trsf;
+  if (!_unfold_transformed) {
+    trsf(0, 0) = args.resolution;
+    trsf(1, 1) = args.resolution;
+    trsf(2, 2) = args.resolution;
+    _unfold_transformed = true;
+  }
+
+  // Project them
+  std::stringstream ss;
+  ss << "<svg viewBox=\"";
+  ss << args.resolution * fig_bounds.xmin << " "
+     << args.resolution * fig_bounds.ymin << " ";
+  ss << args.resolution * (fig_bounds.xmax - fig_bounds.xmin) << " "
+     << args.resolution * (fig_bounds.ymax - fig_bounds.ymin);
+  ss << "\" xmlns=\"http://www.w3.org/2000/svg\">\n";
+  for (const auto &order_elem : order) {
+    _unfold_unlinked[order_elem.uid].fillSVGProjectString(ss, trsf, ax1, ax2);
+  }
+  ss << "</svg>";
+
   return ss.str();
 }
 

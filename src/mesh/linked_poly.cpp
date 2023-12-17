@@ -1,5 +1,6 @@
 #include "kami/mesh/linked_poly.hpp"
 #include "kami/export/line_settings.hpp"
+#include "kami/export/svg_objects.hpp"
 #include "kami/global/arguments.hpp"
 #include "kami/math/edge.hpp"
 #include "kami/math/vertex.hpp"
@@ -379,6 +380,22 @@ void LinkedPolygon::fillSVGString(std::stringstream &stream,
       facets[i].getMesh()->fillSVGString(stream, mat, depth + 1, max_depth);
     }
   }
+};
+
+void LinkedPolygon::fillSVGProjectString(std::stringstream &stream,
+                                         const math::HMat &mat,
+                                         const math::Vec3 &ax1,
+                                         const math::Vec3 &ax2) {
+  transform(mat, false, true);
+
+  // Get the points
+  std::vector<double> x1, x2;
+  for (int i = 0; i < facets.size(); i++) {
+    math::Vec3 v1 = facets[i].getFirst();
+    x1.push_back(ax1.dot(v1));
+    x2.push_back(ax2.dot(v1));
+  }
+  svg::polyline(stream, x1, x2, "white");
 };
 
 } // namespace kami

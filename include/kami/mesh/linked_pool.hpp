@@ -115,6 +115,77 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<LinkedPolygon>> {
   std::string getAsSVGString(MeshBin &, const args::Args &args) const;
 
   // ==========================================================================
+  // Projections
+  // ==========================================================================
+
+  /**
+   * @brief Project the unfolded mesh onto the given two axes. Print them in the
+   * increasing order of the barycenter on the third axis (cross product between
+   * the first two).
+   *
+   * @param ax1 the first axis to project onto
+   * @param ax2 the second axis to project onto
+   * @return a svg string
+   */
+  std::string getProjectionAsString(const math::Vec3 &ax1,
+                                    const math::Vec3 &ax2,
+                                    const args::Args &args);
+
+  /**
+   * @brief Project the figure onto the XY plane and a view from the top as an
+   * SVG string.
+   */
+  inline std::string projectOnTop(const args::Args &args) {
+    return getProjectionAsString(math::Vec3{1, 0, 0}, math::Vec3{0, 1, 0},
+                                 args);
+  }
+
+  /**
+   * @brief Project the figure onto the XY plane and a view from the bottom as
+   * an SVG string.
+   */
+  inline std::string projectOnBottom(const args::Args &args) {
+    return getProjectionAsString(math::Vec3{0, 1, 0}, math::Vec3{1, 0, 0},
+                                 args);
+  }
+
+  /**
+   * @brief Project the figure onto the ZX plane and a view from the right as an
+   * SVG string.
+   */
+  inline std::string projectOnRight(const args::Args &args) {
+    return getProjectionAsString(math::Vec3{0, 0, 1}, math::Vec3{1, 0, 0},
+                                 args);
+  }
+
+  /**
+   * @brief Project the figure onto the ZX plane and a view from the left as an
+   * SVG string.
+   */
+  inline std::string projectOnLeft(const args::Args &args) {
+    return getProjectionAsString(math::Vec3{1, 0, 0}, math::Vec3{0, 0, 1},
+                                 args);
+  }
+
+  /**
+   * @brief Project the figure onto the YZ plane and a view from the front as an
+   * SVG string.
+   */
+  inline std::string projectOnFront(const args::Args &args) {
+    return getProjectionAsString(math::Vec3{0, 1, 0}, math::Vec3{0, 0, 1},
+                                 args);
+  }
+
+  /**
+   * @brief Project the figure onto the YX plane and a view from the back as an
+   * SVG string.
+   */
+  inline std::string projectOnBack(const args::Args &args) {
+    return getProjectionAsString(math::Vec3{0, 0, 1}, math::Vec3{0, 1, 0},
+                                 args);
+  }
+
+  // ==========================================================================
   // Debug
   // ==========================================================================
 
@@ -129,7 +200,7 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<LinkedPolygon>> {
     os << "    Number of faces : " << pool.size() << std::endl;
     for (const std::shared_ptr<LinkedPolygon> mesh : pool) {
       os << *mesh;
-    } 
+    }
     return os;
   }
 
@@ -137,6 +208,11 @@ private:
   out::PaperFormat format = out::PaperA<4>();
   static constexpr ulong DEFAULT_ROOT{0};
   ulong root = DEFAULT_ROOT;
+
+  // Unfold unlinked backup for projection
+  std::vector<LinkedPolygon> _unfold_unlinked;
+  bool _unfold_transformed = false;
+  math::Bounds _unfolded_bounds;
 };
 } // namespace kami
 
