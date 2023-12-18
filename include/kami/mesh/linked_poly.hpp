@@ -14,6 +14,7 @@
 #include "kami/math/barycenter.hpp"
 #include "kami/math/base_types.hpp"
 #include "kami/math/bounds.hpp"
+#include "kami/math/edge.hpp"
 #include "kami/math/hmat.hpp"
 #include "kami/math/overlaps.hpp"
 #include "kami/math/vertex.hpp"
@@ -32,7 +33,7 @@ class LinkedPolygon {
   typedef std::vector<std::shared_ptr<LinkedPolygon>> LinkedPool;
 
 public:
-  LinkedPolygon(int N = 3) : n(math::Vertex(0, 0, 1)) {
+  LinkedPolygon(int N = 3) : n(math::Vertex(0, 0, 1, 0)) {
     facets = std::vector<LinkedEdge<LinkedPolygon>>(N);
   }
 
@@ -218,7 +219,16 @@ protected:
    * @return an homogenous eigen vector representing the edge direction
    */
   math::Vertex getEdgeDirection(int edge, bool normalized = false) const {
-    return getEdge(edge).dir(normalized);
+    if (edge < facets.size())
+      return getEdge(edge).dir(normalized);
+    if (math::Edge::colinear(n, getParentNormal())) {
+      return math::Vertex{1, 0, 0};
+    } else {
+      math::Vertex pn = getParentNormal();
+      math::Vec3 dir =
+          math::Vec3{n(0), n(1), n(2)}.cross(math::Vec3{pn(0), pn(1), pn(2)});
+      return math::Vertex{dir(0), dir(1), dir(2), 0};
+    }
   };
 
   /**

@@ -49,13 +49,16 @@ math::HMat LinkedPolygon::getHRotationMatrix() const {
   math::Vec3 x_axis =
       getEdgeDirection(parent_edge, true); // Edge direction == new X axis
   math::Vec3 new_n = getParentNormal(); // Parent normal direction == new Z axis
+  math::Vec3 old_n = getNormal();       // Child normal direction (old Z axis)
   math::Vec3 y_axis =
-      new_n.cross(x_axis); // Y direction is the cross product of the other two
+      old_n.cross(x_axis); // Y direction is the cross product of the other two
   y_axis.normalize();
 
-  math::Vec3 old_n = getNormal(); // Child normal direction (old Z axis)
+  std::cout << "Sin: " << new_n.dot(old_n) << ", Cos: " << new_n.dot(y_axis)
+            << " => ";
 
-  double theta = M_PI / 2 - std::atan2(new_n.dot(old_n), y_axis.dot(old_n));
+  double theta = -M_PI_2 + std::atan2(new_n.dot(old_n), new_n.dot(y_axis));
+  std::cout << 180 * theta / M_PI << "° to go" << std::endl;
 
   // Set the matrix for a rotation around X
   mat(1, 1) = std::cos(theta);
@@ -112,6 +115,8 @@ void LinkedPolygon::unfoldMesh(long depth, long max_depth) {
   if (max_depth != args::NO_REC_LIMIT && depth >= max_depth)
     return;
 
+  std::cout << "Face " << uid;
+
   // Get the cumulated transformation
   auto rot_mat = getHRotationMatrix();
   auto trsf_mat = getHTransform(parent_edge);
@@ -121,26 +126,14 @@ void LinkedPolygon::unfoldMesh(long depth, long max_depth) {
   unfold_coef =
       (math::Mat4)(getParentTrsf() * trsf_mat * rot_mat * inv_trsf_mat);
 
-  std::cout << "\t Face " << uid << " before: ";
-  for (auto &f : facets) {
-    std::cout << math::Vertex::distance(f.getFirst(), f.getSecond()) << " ";
-  }
-  std::cout << std::endl;
-
-  std::cout << getParentTrsf() << std::endl;
-  std::cout << trsf_mat << std::endl;
+  /*std::cout << getParentTrsf() << std::endl;
+  std::cout << trsf_mat << std::endl;*/
   std::cout << rot_mat << std::endl;
-  std::cout << inv_trsf_mat << std::endl;
-  std::cout << unfold_coef << std::endl;
+  /*std::cout << inv_trsf_mat << std::endl;
+  std::cout << unfold_coef << std::endl;*/
 
   // Rotate this face and normal
   transform(unfold_coef, false, false);
-
-  std::cout << "\t Face " << uid << " after: ";
-  for (auto &f : facets) {
-    std::cout << math::Vertex::distance(f.getFirst(), f.getSecond()) << " ";
-  }
-  std::cout << std::endl;
 
   // Rotate children
   for (int i = 0; i < facets.size(); i++) {
@@ -151,8 +144,10 @@ void LinkedPolygon::unfoldMesh(long depth, long max_depth) {
   // Change Normal
   math::Vec4 result = (math::Vec4)(unfold_coef * n);
   n = math::Vertex(result(0), result(1), result(2), 0);
-  // n.simplify();
+  n.simplify();
   n.normalize();
+  std::cout << "Face " << uid;
+  getHRotationMatrix();
 }
 
 // ==========================================================================
