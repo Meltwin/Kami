@@ -7,6 +7,7 @@
 #include "kami/mesh/linked_poly.hpp"
 #include "kami/packing/bin.hpp"
 #include "kami/packing/box.hpp"
+#include <map>
 #include <vector>
 
 namespace kami {
@@ -114,6 +115,13 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<LinkedPolygon>> {
    */
   std::string getAsSVGString(MeshBin &, const args::Args &args) const;
 
+  /**
+   * @brief Create the color map for all facets
+   *
+   * @return an ordered map that link the uid of the facets to a color string
+   */
+  std::map<ulong, std::string> makeColorMap(const MeshBoxVector &) const;
+
   // ==========================================================================
   // Projections
   // ==========================================================================
@@ -136,7 +144,7 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<LinkedPolygon>> {
    * SVG string.
    */
   inline std::string projectOnTop(const args::Args &args) {
-    return getProjectionAsString(math::Vec3{1, 0, 0}, math::Vec3{0, 1, 0},
+    return getProjectionAsString(math::Vec3{0, 1, 0}, math::Vec3{-1, 0, 0},
                                  args);
   }
 
@@ -154,7 +162,7 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<LinkedPolygon>> {
    * SVG string.
    */
   inline std::string projectOnRight(const args::Args &args) {
-    return getProjectionAsString(math::Vec3{0, 0, 1}, math::Vec3{1, 0, 0},
+    return getProjectionAsString(math::Vec3{-1, 0, 0}, math::Vec3{0, 0, -1},
                                  args);
   }
 
@@ -163,7 +171,7 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<LinkedPolygon>> {
    * SVG string.
    */
   inline std::string projectOnLeft(const args::Args &args) {
-    return getProjectionAsString(math::Vec3{1, 0, 0}, math::Vec3{0, 0, 1},
+    return getProjectionAsString(math::Vec3{1, 0, 0}, math::Vec3{0, 0, -1},
                                  args);
   }
 
@@ -172,7 +180,7 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<LinkedPolygon>> {
    * SVG string.
    */
   inline std::string projectOnFront(const args::Args &args) {
-    return getProjectionAsString(math::Vec3{0, 1, 0}, math::Vec3{0, 0, 1},
+    return getProjectionAsString(math::Vec3{0, 1, 0}, math::Vec3{0, 0, -1},
                                  args);
   }
 
@@ -181,7 +189,7 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<LinkedPolygon>> {
    * SVG string.
    */
   inline std::string projectOnBack(const args::Args &args) {
-    return getProjectionAsString(math::Vec3{0, 0, 1}, math::Vec3{0, 1, 0},
+    return getProjectionAsString(math::Vec3{0, -1, 0}, math::Vec3{0, 0, -1},
                                  args);
   }
 
@@ -208,6 +216,8 @@ private:
   out::PaperFormat format = out::PaperA<4>();
   static constexpr ulong DEFAULT_ROOT{0};
   ulong root = DEFAULT_ROOT;
+
+  std::map<ulong, std::string> color_map;
 
   // Unfold unlinked backup for projection
   std::vector<LinkedPolygon> _unfold_unlinked;

@@ -43,7 +43,7 @@ public:
   /**
    * @brief Return the center of the edge
    */
-  inline Vertex pos() const { return Vertex::barycenter({v1, v2}); }
+  inline Vertex pos() const { return v1; }
 
   // ==========================================================================
   // Utils for edges computations

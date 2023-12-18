@@ -1,4 +1,5 @@
 #include "kami/mesh/linked_pool.hpp"
+#include "kami/export/color.hpp"
 #include "kami/global/arguments.hpp"
 #include "kami/global/logging.hpp"
 #include "kami/math/barycenter.hpp"
@@ -10,6 +11,7 @@
 #include <cmath>
 #include <memory>
 #include <sstream>
+#include <string>
 #include <vector>
 
 namespace kami {
@@ -104,6 +106,8 @@ MeshBinVector LinkedMeshPool::slice() {
     }
   });
 
+  TIMED_SECTION("Making boxes colors", color_map = makeColorMap(boxes));
+
   // Launch the bin packing
   MeshBinVector bins;
   TIMED_SECTION("Paper box packing", bins = binPackingAlgorithm(boxes));
@@ -197,6 +201,28 @@ MeshBinVector LinkedMeshPool::binPackingAlgorithm(MeshBoxVector &boxes) {
 // Exporting
 // ==========================================================================
 
+std::map<ulong, std::string>
+LinkedMeshPool::makeColorMap(const MeshBoxVector &boxes) const {
+  std::map<ulong, std::string> color_map;
+  color::ColorGenerator gen = color::ColorGenerator::basicGenerator();
+
+  std::vector<ulong> uids;
+  for (auto &box : boxes) {
+    // Get uids
+    uids.resize(0);
+    box.root->getChildUIDs(uids);
+
+    auto color = gen.makeNewColor();
+    std::cout << color.str() << std::endl;
+
+    // Assign in the map
+    for (auto id : uids)
+      color_map.insert_or_assign(id, color.str());
+  }
+
+  return color_map;
+}
+
 std::string LinkedMeshPool::getAsSVGString(MeshBin &bin,
                                            const args::Args &args) const {
   std::stringstream ss;
@@ -227,7 +253,8 @@ std::string LinkedMeshPool::getAsSVGString(MeshBin &bin,
 
     std::cout << mat << std::endl;
 
-    box.root->fillSVGString(ss, mat, 0, args.max_depth);
+    box.root->fillSVGString(ss, mat, color_map.at(box.root->getUID()), 0,
+                            args.max_depth);
 
     if (args.svg_debug) {
       ss << "<rect x=\"" << args.resolution * box.x << "\" y=\""
@@ -321,7 +348,8 @@ std::string LinkedMeshPool::getProjectionAsString(const math::Vec3 &ax1,
      << args.resolution * (fig_bounds.ymax - fig_bounds.ymin);
   ss << "\" xmlns=\"http://www.w3.org/2000/svg\">\n";
   for (const auto &order_elem : order) {
-    _unfold_unlinked[order_elem.uid].fillSVGProjectString(ss, trsf, ax1, ax2);
+    _unfold_unlinked[order_elem.uid].fillSVGProjectString(
+        ss, trsf, ax1, ax2, color_map.at(order_elem.uid));
   }
   ss << "</svg>";
 

@@ -4,15 +4,16 @@
 namespace kami::out {
 
 void svg::polyline(stream &os, const std::vector<double> &x,
-                   const std::vector<double> &y,
-                   const std::string &fill_color) {
+                   const std::vector<double> &y, const LineStyle &line,
+                   const std::string &fill_color, double opacity) {
   os << "<polygon points=\"";
   ulong min = std::min(x.size(), y.size());
   for (ulong i = 0; i < min; i++)
     os << x[i] << "," << y[i] << ((i == min - 1) ? "" : " ");
   os << "\" ";
   os << "fill=\"" << fill_color << "\" ";
-  appendLineStyle(LineStyle::INNER, os);
+  os << "fill-opacity=\"" << opacity << "\" ";
+  appendLineStyle(line, os);
   os << "/>\n";
 }
 

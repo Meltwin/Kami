@@ -63,7 +63,7 @@ math::HMat LinkedPolygon::getHRotationMatrix() const {
   mat(2, 1) = std::sin(theta);
   mat(2, 2) = std::cos(theta);
 
-  mat.simplify();
+  // mat.simplify();
 
   return mat;
 }
@@ -76,11 +76,14 @@ math::HMat LinkedPolygon::getHTransform(int edge) const {
   mat.setRotXAsAxis(x_axis);
 
   // Parent normal direction == new Z axis
-  math::Vec3 z_axis = getParentNormal();
+  math::Vec3 z_axis = getNormal();
+  z_axis.normalize();
   mat.setRotZAsAxis(z_axis);
 
   // Y direction is the cross product of the other two
-  mat.setRotYAsAxis(z_axis.cross(x_axis));
+  auto y_axis = z_axis.cross(x_axis);
+  // y_axis.normalize();
+  mat.setRotYAsAxis(y_axis);
 
   // Translation part
   mat.setTransAsAxis(getEdgePosition(parent_edge));
@@ -112,13 +115,32 @@ void LinkedPolygon::unfoldMesh(long depth, long max_depth) {
   // Get the cumulated transformation
   auto rot_mat = getHRotationMatrix();
   auto trsf_mat = getHTransform(parent_edge);
-  auto inv_trsf_mat = trsf_mat.invert();
+  // auto inv_trsf_mat = trsf_mat.invert();
+  auto inv_trsf_mat = trsf_mat.inverse();
 
   unfold_coef =
       (math::Mat4)(getParentTrsf() * trsf_mat * rot_mat * inv_trsf_mat);
 
+  std::cout << "\t Face " << uid << " before: ";
+  for (auto &f : facets) {
+    std::cout << math::Vertex::distance(f.getFirst(), f.getSecond()) << " ";
+  }
+  std::cout << std::endl;
+
+  std::cout << getParentTrsf() << std::endl;
+  std::cout << trsf_mat << std::endl;
+  std::cout << rot_mat << std::endl;
+  std::cout << inv_trsf_mat << std::endl;
+  std::cout << unfold_coef << std::endl;
+
   // Rotate this face and normal
   transform(unfold_coef, false, false);
+
+  std::cout << "\t Face " << uid << " after: ";
+  for (auto &f : facets) {
+    std::cout << math::Vertex::distance(f.getFirst(), f.getSecond()) << " ";
+  }
+  std::cout << std::endl;
 
   // Rotate children
   for (int i = 0; i < facets.size(); i++) {
@@ -129,7 +151,7 @@ void LinkedPolygon::unfoldMesh(long depth, long max_depth) {
   // Change Normal
   math::Vec4 result = (math::Vec4)(unfold_coef * n);
   n = math::Vertex(result(0), result(1), result(2), 0);
-  n.simplify();
+  // n.simplify();
   n.normalize();
 }
 
@@ -361,7 +383,8 @@ LinkedPolygon::sliceChildren(const LinkedPool &pool,
 // ==========================================================================
 
 void LinkedPolygon::fillSVGString(std::stringstream &stream,
-                                  const math::HMat &mat, int depth,
+                                  const math::HMat &mat,
+                                  const std::string &color, int depth,
                                   int max_depth) {
   if (max_depth != -1 && depth >= max_depth)
     return;
@@ -369,15 +392,21 @@ void LinkedPolygon::fillSVGString(std::stringstream &stream,
   transform(mat, false, true);
 
   // Draw this facet
+  std::vector<double> x, y;
   for (int i = 0; i < facets.size(); i++) {
     facets[i].setTextRatio(mat(2, 2));
     facets[i].getAsSVGLine(stream);
+
+    x.push_back(facets[i].getFirst()(0));
+    y.push_back(facets[i].getFirst()(1));
   }
+  svg::polyline(stream, x, y, LineStyle::NONE, color);
 
   // Call the children
   for (int i = 0; i < facets.size(); i++) {
     if (facets[i].isOwned() && !facets[i].hasCut()) {
-      facets[i].getMesh()->fillSVGString(stream, mat, depth + 1, max_depth);
+      facets[i].getMesh()->fillSVGString(stream, mat, color, depth + 1,
+                                         max_depth);
     }
   }
 };
@@ -385,7 +414,8 @@ void LinkedPolygon::fillSVGString(std::stringstream &stream,
 void LinkedPolygon::fillSVGProjectString(std::stringstream &stream,
                                          const math::HMat &mat,
                                          const math::Vec3 &ax1,
-                                         const math::Vec3 &ax2) {
+                                         const math::Vec3 &ax2,
+                                         const std::string &color) {
   transform(mat, false, true);
 
   // Get the points
@@ -395,7 +425,7 @@ void LinkedPolygon::fillSVGProjectString(std::stringstream &stream,
     x1.push_back(ax1.dot(v1));
     x2.push_back(ax2.dot(v1));
   }
-  svg::polyline(stream, x1, x2, "white");
+  svg::polyline(stream, x1, x2, LineStyle::INNER, color, 1.0);
 };
 
 } // namespace kami

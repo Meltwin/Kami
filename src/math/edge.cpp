@@ -1,5 +1,5 @@
 #include "kami/math/edge.hpp"
-#include "kami/export/box_settings.hpp"
+#include "kami/export/out_settings.hpp"
 #include "kami/math/bounds.hpp"
 
 namespace kami::math {

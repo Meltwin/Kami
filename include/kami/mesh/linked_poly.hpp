@@ -32,7 +32,7 @@ class LinkedPolygon {
   typedef std::vector<std::shared_ptr<LinkedPolygon>> LinkedPool;
 
 public:
-  LinkedPolygon(int N = 3) : n(math::Vertex(0, 0, 0)) {
+  LinkedPolygon(int N = 3) : n(math::Vertex(0, 0, 1)) {
     facets = std::vector<LinkedEdge<LinkedPolygon>>(N);
   }
 
@@ -56,6 +56,14 @@ public:
    */
   const void getBarycenter(math::Barycenter &bary, bool recursive,
                            bool stop_on_cut = true) const;
+
+  void getChildUIDs(std::vector<ulong> &uids) const {
+    uids.push_back(uid);
+    for (auto &f : facets) {
+      if (!f.nullMesh() && f.isOwned() && !f.hasCut())
+        f.getMesh()->getChildUIDs(uids);
+    }
+  }
 
   // ==========================================================================
   // Transformations
@@ -122,7 +130,7 @@ public:
    * @param max_depth the maximum depth
    */
   void fillSVGString(std::stringstream &stream, const math::HMat &mat,
-                     int depth, int max_depth);
+                     const std::string &color, int depth, int max_depth);
 
   /**
    * @brief Fill the given stringstream with the serialized version of this
@@ -133,7 +141,8 @@ public:
    * @param mat the transformation matrix to apply
    */
   void fillSVGProjectString(std::stringstream &stream, const math::HMat &mat,
-                            const math::Vec3 &ax1, const math::Vec3 &ax2);
+                            const math::Vec3 &ax1, const math::Vec3 &ax2,
+                            const std::string &color);
 
 protected:
   // ==========================================================================

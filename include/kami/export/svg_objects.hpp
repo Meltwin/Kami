@@ -18,7 +18,8 @@ typedef std::stringstream stream;
  * @brief Add a polyline in the given SVG stream
  */
 void polyline(stream &, const std::vector<double> &x,
-              const std::vector<double> &y, const std::string &fill_color);
+              const std::vector<double> &y, const LineStyle &line,
+              const std::string &fill_color, double opacity = 0.45);
 
 // ==========================================================================
 // Line
