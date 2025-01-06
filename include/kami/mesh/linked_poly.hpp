@@ -14,6 +14,7 @@
 #include "kami/math/barycenter.hpp"
 #include "kami/math/base_types.hpp"
 #include "kami/math/bounds.hpp"
+#include "kami/math/edge.hpp"
 #include "kami/math/hmat.hpp"
 #include "kami/math/overlaps.hpp"
 #include "kami/math/vertex.hpp"
@@ -21,7 +22,6 @@
 #include "kami/packing/box.hpp"
 #include <memory>
 #include <vector>
-
 
 namespace kami {
 
@@ -33,9 +33,8 @@ class LinkedPolygon {
   typedef std::vector<std::shared_ptr<LinkedPolygon>> LinkedPool;
 
 public:
-  LinkedPolygon(int N = 3) : n(math::Vertex(0, 0, 0)) {
+  LinkedPolygon(int N = 3) : n(math::Vertex(0, 0, 1, 0)) {
     facets = std::vector<LinkedEdge<LinkedPolygon>>(N);
-    n_edges = N;
   }
 
   // ==========================================================================
@@ -52,6 +51,20 @@ public:
   int getParentEdgeIndex() const { return parent_edge; }
 
   std::string getParentEdgeName() const { return getEdgeName(parent_edge); }
+
+  /**
+   * @brief Get the barycenter of the children of this facet and itself.
+   */
+  const void getBarycenter(math::Barycenter &bary, bool recursive,
+                           bool stop_on_cut = true) const;
+
+  void getChildUIDs(std::vector<ulong> &uids) const {
+    uids.push_back(uid);
+    for (auto &f : facets) {
+      if (!f.nullMesh() && f.isOwned() && !f.hasCut())
+        f.getMesh()->getChildUIDs(uids);
+    }
+  }
 
   // ==========================================================================
   // Transformations
@@ -84,6 +97,12 @@ public:
    */
   std::vector<ulong> linkNeighbours(LinkedPool &pool);
 
+  /**
+   * @brief Merge the facets with owned child facets with the same normal
+   *
+   */
+  void mergeSimilar(LinkedPool &pool, std::vector<ulong> &removed);
+
   // ==========================================================================
   // Sclicing logic
   // ==========================================================================
@@ -112,14 +131,25 @@ public:
    * @param max_depth the maximum depth
    */
   void fillSVGString(std::stringstream &stream, const math::HMat &mat,
-                     int depth, int max_depth);
+                     const std::string &color, int depth, int max_depth);
+
+  /**
+   * @brief Fill the given stringstream with the serialized version of this
+   * facet. Project the vertex onto the two given axis and with the given color.
+   * This function is *not* called recursively.
+   *
+   * @param stream the string stream to fill
+   * @param mat the transformation matrix to apply
+   */
+  void fillSVGProjectString(std::stringstream &stream, const math::HMat &mat,
+                            const math::Vec3 &ax1, const math::Vec3 &ax2,
+                            const std::string &color);
 
 protected:
   // ==========================================================================
   // Facet description
   // ==========================================================================
   // Facet properties
-  ulong n_edges;                                 //< The number of edges
   ulong uid;                                     //< The UID if this facet
   std::vector<LinkedEdge<LinkedPolygon>> facets; //< Edges of this facet
   int parent_edge = INT8_MAX;                    //< Edge to the parent
@@ -137,7 +167,7 @@ protected:
    * @brief Get the edge corresponding to this number
    */
   inline LinkedEdge<LinkedPolygon> getEdge(int edge) const {
-    if (edge < n_edges)
+    if (edge < facets.size())
       return facets[edge];
     return facets[0];
   };
@@ -147,7 +177,7 @@ protected:
    */
   inline std::string getEdgeName(int edge) const {
     std::stringstream ss;
-    ss << "f" << edge + 1 << ((edge == n_edges - 1) ? 1 : edge + 2);
+    ss << "f" << edge + 1 << ((edge == facets.size() - 1) ? 1 : edge + 2);
     return ss.str();
   };
 
@@ -157,16 +187,10 @@ protected:
    * @return a pointer to the parent if exist, else nullptr
    */
   inline const LinkedPolygon *getParent() const {
-    if (parent_edge < n_edges)
+    if (parent_edge < facets.size())
       return facets[parent_edge].getMesh();
     return nullptr;
   };
-
-  /**
-   * @brief Get the barycenter of the children of this facet and itself.
-   */
-  const void getBarycenter(math::Barycenter &bary, bool recursive,
-                           bool stop_on_cut = true) const;
 
   // ==========================================================================
   // Vertex utils
@@ -195,7 +219,16 @@ protected:
    * @return an homogenous eigen vector representing the edge direction
    */
   math::Vertex getEdgeDirection(int edge, bool normalized = false) const {
-    return getEdge(edge).dir(normalized);
+    if (edge < facets.size())
+      return getEdge(edge).dir(normalized);
+    if (math::Edge::colinear(n, getParentNormal())) {
+      return math::Vertex{1, 0, 0};
+    } else {
+      math::Vertex pn = getParentNormal();
+      math::Vec3 dir =
+          math::Vec3{n(0), n(1), n(2)}.cross(math::Vec3{pn(0), pn(1), pn(2)});
+      return math::Vertex{dir(0), dir(1), dir(2), 0};
+    }
   };
 
   /**
@@ -265,7 +298,7 @@ protected:
    * @return true if the two facets are neighbours
    * @return false if they are not neighbours
    */
-  bool hasSameEdge(LinkedPolygon *parent_facet, int edge);
+  bool hasSameEdge(LinkedPolygon *parent_facet, int edge, int &on_edge);
 
   // ==========================================================================
   // Sclicing logic
@@ -296,18 +329,17 @@ protected:
   // Debug
   // ==========================================================================
   void displayInformations(std::ostream &os) const {
-    os << "Mesh " << uid << " : " << std::endl;
-    for (int i = 0; i < n_edges; i++) {
-      os << "  - f" << i + 1 << ((i == n_edges - 1) ? 1 : i + 2) << " "
+    os << "\tMesh " << uid << " : " << std::endl;
+    for (int i = 0; i < facets.size(); i++) {
+      os << "\t  - f" << i + 1 << ((i == facets.size() - 1) ? 1 : i + 2) << " "
          << facets[i] << std::endl;
     }
   };
 
   friend std::ostream &operator<<(std::ostream &os, const LinkedPolygon &mesh) {
-    os << "Mesh " << mesh.uid << " : " << std::endl;
     mesh.displayInformations(os);
-    os << "  - Normal [" << mesh.n(0) << ", " << mesh.n(1) << ", " << mesh.n(2)
-       << "]" << std::endl;
+    os << "\t  - Normal [" << mesh.n(0) << ", " << mesh.n(1) << ", "
+       << mesh.n(2) << "]" << std::endl;
     return os;
   }
 };

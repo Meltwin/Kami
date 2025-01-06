@@ -90,9 +90,18 @@ struct HMat : public Mat4 {
     HMat out;
 
     // Invert rotation
-    for (int i = 0; i < 3; i++)
-      for (int j = 0; j < 3; j++)
+    double norm;
+    for (int j = 0; j < 3; j++) {
+      norm = 0;
+      for (int i = 0; i < 3; i++) {
         out(i, j) = (*this)(j, i);
+        norm += out(i, j) * out(i, j);
+      }
+      norm = std::sqrt(norm);
+
+      /*for (int i = 0; i < 3; i++)
+        out(i, j) /= norm;*/
+    }
 
     // New translation
     for (int i = 0; i < 3; i++)

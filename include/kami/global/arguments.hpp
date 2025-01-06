@@ -1,6 +1,7 @@
 #ifndef KAMI_ARGUMENTS
 #define KAMI_ARGUMENTS
 
+#include "kami/global/logging.hpp"
 #include <cmath>
 #include <cstring>
 #include <iostream>
@@ -11,8 +12,7 @@
 namespace kami::args {
 
 inline void appHeader() {
-  std::cout << " --- Kami, a paper pattern maker by Meltwin (2023) ---"
-            << std::endl;
+  printTitle("Kami, a paper pattern maker by Meltwin (2023)");
 }
 
 inline void printHelp() {

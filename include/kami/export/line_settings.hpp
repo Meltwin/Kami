@@ -10,7 +10,7 @@ enum class LineStyle { NONE, PERIMETER, INNER, CUTTED };
 inline void appendLineStyle(LineStyle line, std::stringstream &ss) {
   switch (line) {
   case LineStyle::NONE:
-    ss << "";
+    ss << "stroke=\"white\" stroke-width=\"0\"";
     break;
   case LineStyle::PERIMETER:
     ss << "stroke=\"black\" stroke-width=\"3\"";

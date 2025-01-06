@@ -21,6 +21,9 @@ public:
   const Vertex &getFirst() const { return v1; }
   const Vertex &getSecond() const { return v2; }
 
+  void setFirst(const Vertex &_v1) { v1 = _v1; }
+  void setSecond(const Vertex &_v2) { v2 = _v2; }
+
   // ==========================================================================
   // Utils for vertex computations
   // ==========================================================================
@@ -40,7 +43,7 @@ public:
   /**
    * @brief Return the center of the edge
    */
-  inline Vertex pos() const { return Vertex::barycenter({v1, v2}); }
+  inline Vertex pos() const { return v1; }
 
   // ==========================================================================
   // Utils for edges computations
@@ -93,6 +96,17 @@ public:
    * @return (s, t) = std::pair<double, double> the parameters for both vectors
    */
   static IntersectParams findIntersect(const Edge &e1, const Edge &e2);
+
+  static bool colinear(const Vertex &v1, const Vertex &v2) {
+    return (std::fabs(v1(1) * v2(2) - v1(2) * v2(1)) <= MAX_DISTANCE) &&
+           (std::fabs(v1(2) * v2(0) - v1(0) * v2(2)) <= MAX_DISTANCE) &&
+           (std::fabs(v1(0) * v2(1) - v1(1) * v2(0)) <= MAX_DISTANCE);
+  }
+
+  static bool sameDir(const Vertex &v1, const Vertex &v2) {
+    return colinear(v1, v2) &&
+           (v1(0) * v2(0) + v1(1) * v2(1) + v1(2) * v2(2) >= 0);
+  }
 
 protected:
   Vertex v1, v2;

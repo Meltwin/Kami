@@ -3,9 +3,11 @@
 
 #include "kami/export/paper_format.hpp"
 #include "kami/global/arguments.hpp"
+#include "kami/global/logging.hpp"
 #include "kami/mesh/linked_poly.hpp"
 #include "kami/packing/bin.hpp"
 #include "kami/packing/box.hpp"
+#include <map>
 #include <vector>
 
 namespace kami {
@@ -53,7 +55,11 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<LinkedPolygon>> {
    *
    * @param max_depth the maximum of recursivity (-1 for no limit)
    */
-  void unfold(ulong max_depth) { (*this)[root]->unfoldMesh(0, max_depth); }
+  void unfold(ulong max_depth) {
+    TIMED_UTILS;
+    TIMED_SECTION("Unfolding the linked mesh",
+                  (*this)[root]->unfoldMesh(0, max_depth));
+  }
 
   /**
    * @brief Rescale the figure into the world by the given factor.
@@ -61,11 +67,14 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<LinkedPolygon>> {
    * @param scaling_factor the scaling factor to apply
    */
   void scaleFigure(double scaling_factor) {
-    math::HMat mat;
-    mat(0, 0) = scaling_factor;
-    mat(1, 1) = scaling_factor;
-    mat(2, 2) = scaling_factor;
-    (*this)[root]->transform(mat, true, false);
+    TIMED_UTILS;
+    TIMED_SECTION("Rescaling the mesh", {
+      math::HMat mat;
+      mat(0, 0) = scaling_factor;
+      mat(1, 1) = scaling_factor;
+      mat(2, 2) = scaling_factor;
+      (*this)[root]->transform(mat, true, false);
+    });
   }
 
   // ==========================================================================
@@ -106,6 +115,84 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<LinkedPolygon>> {
    */
   std::string getAsSVGString(MeshBin &, const args::Args &args) const;
 
+  /**
+   * @brief Create the color map for all facets
+   *
+   * @return an ordered map that link the uid of the facets to a color string
+   */
+  std::map<ulong, std::string> makeColorMap(const MeshBoxVector &) const;
+
+  // ==========================================================================
+  // Projections
+  // ==========================================================================
+
+  /**
+   * @brief Project the unfolded mesh onto the given two axes. Print them in the
+   * increasing order of the barycenter on the third axis (cross product between
+   * the first two).
+   *
+   * @param ax1 the first axis to project onto
+   * @param ax2 the second axis to project onto
+   * @return a svg string
+   */
+  std::string getProjectionAsString(const math::Vec3 &ax1,
+                                    const math::Vec3 &ax2,
+                                    const args::Args &args);
+
+  /**
+   * @brief Project the figure onto the XY plane and a view from the top as an
+   * SVG string.
+   */
+  inline std::string projectOnTop(const args::Args &args) {
+    return getProjectionAsString(math::Vec3{0, 1, 0}, math::Vec3{-1, 0, 0},
+                                 args);
+  }
+
+  /**
+   * @brief Project the figure onto the XY plane and a view from the bottom as
+   * an SVG string.
+   */
+  inline std::string projectOnBottom(const args::Args &args) {
+    return getProjectionAsString(math::Vec3{0, 1, 0}, math::Vec3{1, 0, 0},
+                                 args);
+  }
+
+  /**
+   * @brief Project the figure onto the ZX plane and a view from the right as an
+   * SVG string.
+   */
+  inline std::string projectOnRight(const args::Args &args) {
+    return getProjectionAsString(math::Vec3{-1, 0, 0}, math::Vec3{0, 0, -1},
+                                 args);
+  }
+
+  /**
+   * @brief Project the figure onto the ZX plane and a view from the left as an
+   * SVG string.
+   */
+  inline std::string projectOnLeft(const args::Args &args) {
+    return getProjectionAsString(math::Vec3{1, 0, 0}, math::Vec3{0, 0, -1},
+                                 args);
+  }
+
+  /**
+   * @brief Project the figure onto the YZ plane and a view from the front as an
+   * SVG string.
+   */
+  inline std::string projectOnFront(const args::Args &args) {
+    return getProjectionAsString(math::Vec3{0, 1, 0}, math::Vec3{0, 0, -1},
+                                 args);
+  }
+
+  /**
+   * @brief Project the figure onto the YX plane and a view from the back as an
+   * SVG string.
+   */
+  inline std::string projectOnBack(const args::Args &args) {
+    return getProjectionAsString(math::Vec3{0, -1, 0}, math::Vec3{0, 0, -1},
+                                 args);
+  }
+
   // ==========================================================================
   // Debug
   // ==========================================================================
@@ -117,7 +204,8 @@ struct LinkedMeshPool : std::vector<std::shared_ptr<LinkedPolygon>> {
 
   friend std::ostream &operator<<(std::ostream &os,
                                   const LinkedMeshPool &pool) {
-    os << "Pool : " << std::endl;
+    printStepHeader("Pool faces");
+    os << "    Number of faces : " << pool.size() << std::endl;
     for (const std::shared_ptr<LinkedPolygon> mesh : pool) {
       os << *mesh;
     }
@@ -128,6 +216,13 @@ private:
   out::PaperFormat format = out::PaperA<4>();
   static constexpr ulong DEFAULT_ROOT{0};
   ulong root = DEFAULT_ROOT;
+
+  std::map<ulong, std::string> color_map;
+
+  // Unfold unlinked backup for projection
+  std::vector<LinkedPolygon> _unfold_unlinked;
+  bool _unfold_transformed = false;
+  math::Bounds _unfolded_bounds;
 };
 } // namespace kami
 

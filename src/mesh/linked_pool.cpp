@@ -1,9 +1,17 @@
 #include "kami/mesh/linked_pool.hpp"
+#include "kami/export/color.hpp"
 #include "kami/global/arguments.hpp"
+#include "kami/global/logging.hpp"
+#include "kami/math/barycenter.hpp"
+#include "kami/math/bounds.hpp"
+#include "kami/math/hmat.hpp"
 #include "kami/mesh/linked_implementations.hpp"
 #include "kami/mesh/linked_poly.hpp"
+#include <algorithm>
 #include <cmath>
+#include <memory>
 #include <sstream>
+#include <string>
 #include <vector>
 
 namespace kami {
@@ -17,6 +25,7 @@ LinkedMeshPool::LinkedMeshPool(microstl::Mesh &mesh)
   for (ulong i = 0; i < mesh.facets.size(); i++) {
     (*this)[i] = std::make_shared<LinkedTriangle>(&mesh.facets[i], i);
   }
+  this->makeFacetPoolInternalLink();
 }
 
 // ==========================================================================
@@ -24,13 +33,49 @@ LinkedMeshPool::LinkedMeshPool(microstl::Mesh &mesh)
 // ==========================================================================
 
 void LinkedMeshPool::makeFacetPoolInternalLink() {
-  ulong index = 0;
-  std::vector<ulong> stack{0};
-  while ((index < stack.size()) && (index < this->size())) {
-    auto created = (*this)[stack[index]]->linkNeighbours(*this);
-    stack.insert(stack.end(), created.begin(), created.end());
-    index++;
-  }
+  TIMED_UTILS;
+  TIMED_SECTION("Mesh preparation", {
+    // Merging facets of same normal
+    printStepHeader("Merging facets of same direction");
+    std::vector<ulong> removed(0);
+    for (auto &poly : *this) {
+      if (auto it = std::find_if(
+              removed.begin(), removed.end(),
+              [&poly](ulong &other) { return other == poly->getUID(); });
+          it == removed.end()) {
+        poly->mergeSimilar(*this, removed);
+      }
+    }
+
+    // Remove all faces that have been merged from the pool
+    printStepHeader("Removing merged faces");
+    for (const auto &uid : removed) {
+      if (auto it = std::find_if(this->begin(), this->end(),
+                                 [&uid](std::shared_ptr<LinkedPolygon> &poly) {
+                                   return poly->getUID() == uid;
+                                 });
+          it != this->end()) {
+        this->erase(it);
+      }
+    }
+
+    // Backuping everything
+    for (auto &f : *this) {
+      _unfold_unlinked.push_back(*f.get());
+    }
+
+    // Linking every facet
+    printStepHeader("Mesh Linking");
+    ulong index = 0;
+    std::vector<ulong> stack{0};
+    while ((index < stack.size()) && (index < this->size())) {
+      auto created = (*this)[stack[index]]->linkNeighbours(*this);
+      stack.insert(stack.end(), created.begin(), created.end());
+      index++;
+    }
+
+    _unfolded_bounds += (*this)[root]->getBounds(true);
+  })
 }
 
 // ==========================================================================
@@ -39,25 +84,34 @@ void LinkedMeshPool::makeFacetPoolInternalLink() {
 
 MeshBinVector LinkedMeshPool::slice() {
   MeshBoxVector boxes;
-  (*this)[root]->sliceChildren(*this, boxes);
 
-  // Transforming the root
-  auto b = (*this)[root]->getBounds(true, true);
-  math::HMat mat;
-  mat.setTransAsAxis(math::Vec3{-b.xmin, -b.ymin, 0});
-  (*this)[root]->transform(mat, true, true);
+  TIMED_UTILS;
+  TIMED_SECTION("Mesh slicing", {
+    (*this)[root]->sliceChildren(*this, boxes);
 
-  // Adding the root to the list
-  boxes.push_back(MeshBox((*this)[root].get(), (*this)[root]->getBounds(true)));
+    // Transforming the root
+    auto b = (*this)[root]->getBounds(true, true);
+    math::HMat mat;
+    mat.setTransAsAxis(math::Vec3{-b.xmin, -b.ymin, 0});
+    (*this)[root]->transform(mat, true, true);
 
-  // Debug
-  std::cout << "Got " << boxes.size() << " parts for this mesh" << std::endl;
-  for (auto &b : boxes) {
-    std::cout << "\t" << b << std::endl;
-  }
+    // Adding the root to the list
+    boxes.push_back(
+        MeshBox((*this)[root].get(), (*this)[root]->getBounds(true)));
+
+    printStepHeader("Slicing result");
+    std::cout << "Got " << boxes.size() << " parts for this mesh" << std::endl;
+    for (auto &b : boxes) {
+      std::cout << "\t" << b << std::endl;
+    }
+  });
+
+  TIMED_SECTION("Making boxes colors", color_map = makeColorMap(boxes));
 
   // Launch the bin packing
-  return binPackingAlgorithm(boxes);
+  MeshBinVector bins;
+  TIMED_SECTION("Paper box packing", bins = binPackingAlgorithm(boxes));
+  return bins;
 }
 
 MeshBinVector LinkedMeshPool::binPackingAlgorithm(MeshBoxVector &boxes) {
@@ -147,6 +201,28 @@ MeshBinVector LinkedMeshPool::binPackingAlgorithm(MeshBoxVector &boxes) {
 // Exporting
 // ==========================================================================
 
+std::map<ulong, std::string>
+LinkedMeshPool::makeColorMap(const MeshBoxVector &boxes) const {
+  std::map<ulong, std::string> color_map;
+  color::ColorGenerator gen = color::ColorGenerator::basicGenerator();
+
+  std::vector<ulong> uids;
+  for (auto &box : boxes) {
+    // Get uids
+    uids.resize(0);
+    box.root->getChildUIDs(uids);
+
+    auto color = gen.makeNewColor();
+    std::cout << color.str() << std::endl;
+
+    // Assign in the map
+    for (auto id : uids)
+      color_map.insert_or_assign(id, color.str());
+  }
+
+  return color_map;
+}
+
 std::string LinkedMeshPool::getAsSVGString(MeshBin &bin,
                                            const args::Args &args) const {
   std::stringstream ss;
@@ -177,7 +253,8 @@ std::string LinkedMeshPool::getAsSVGString(MeshBin &bin,
 
     std::cout << mat << std::endl;
 
-    box.root->fillSVGString(ss, mat, 0, args.max_depth);
+    box.root->fillSVGString(ss, mat, color_map.at(box.root->getUID()), 0,
+                            args.max_depth);
 
     if (args.svg_debug) {
       ss << "<rect x=\"" << args.resolution * box.x << "\" y=\""
@@ -208,6 +285,78 @@ std::string LinkedMeshPool::getAsSVGString(MeshBin &bin,
 }
 
 // ==========================================================================
+// Projections
+// ==========================================================================
+
+struct ProjectionOrder {
+  ulong uid;
+  double value;
+};
+
+std::string LinkedMeshPool::getProjectionAsString(const math::Vec3 &ax1,
+                                                  const math::Vec3 &ax2,
+                                                  const args::Args &args) {
+  auto normal = ax1.cross(ax2);
+
+  // Get the bounds of the figure
+  math::Bounds fig_bounds;
+  math::Vec3 pt;
+  double on1, on2;
+  for (char pi = 0; pi < 8; pi++) {
+    pt = math::Vec3{
+        ((pi & 0x01) == 0x01) ? _unfolded_bounds.xmin : _unfolded_bounds.xmax,
+        ((pi & 0x02) == 0x02) ? _unfolded_bounds.ymin : _unfolded_bounds.ymax,
+        ((pi & 0x04) == 0x04) ? _unfolded_bounds.zmin : _unfolded_bounds.zmax,
+    };
+    std::cout << "\tPoint " << +pi << " " << pt(0) << ", " << pt(1) << ", "
+              << pt(2) << std::endl;
+    on1 = pt.dot(ax1);
+    on2 = pt.dot(ax2);
+    fig_bounds += math::Bounds{on1, on1, on2, on2, 0, 0};
+  }
+
+  // Get the order
+  std::vector<ProjectionOrder> order(_unfold_unlinked.size());
+  for (ulong i = 0; i < _unfold_unlinked.size(); i++) {
+    math::Barycenter bary;
+    _unfold_unlinked[i].getBarycenter(bary, false);
+    math::Vec3 bary3 = bary.getBarycenter();
+    order[i] = ProjectionOrder{_unfold_unlinked[i].getUID(), bary3.dot(normal)};
+  }
+
+  // Get the order
+  std::sort(order.begin(), order.end(),
+            [](ProjectionOrder &p1, ProjectionOrder &p2) {
+              return p1.value < p2.value;
+            });
+
+  // Get transform matrix
+  math::HMat trsf;
+  if (!_unfold_transformed) {
+    trsf(0, 0) = args.resolution;
+    trsf(1, 1) = args.resolution;
+    trsf(2, 2) = args.resolution;
+    _unfold_transformed = true;
+  }
+
+  // Project them
+  std::stringstream ss;
+  ss << "<svg viewBox=\"";
+  ss << args.resolution * fig_bounds.xmin << " "
+     << args.resolution * fig_bounds.ymin << " ";
+  ss << args.resolution * (fig_bounds.xmax - fig_bounds.xmin) << " "
+     << args.resolution * (fig_bounds.ymax - fig_bounds.ymin);
+  ss << "\" xmlns=\"http://www.w3.org/2000/svg\">\n";
+  for (const auto &order_elem : order) {
+    _unfold_unlinked[order_elem.uid].fillSVGProjectString(
+        ss, trsf, ax1, ax2, color_map.at(order_elem.uid));
+  }
+  ss << "</svg>";
+
+  return ss.str();
+}
+
+// ==========================================================================
 // Debug
 // ==========================================================================s
 
@@ -221,7 +370,7 @@ void LinkedMeshPool::printInformations() const {
     if (!facet.f12.owned && !facet.f23.owned && !facet.f31.owned)
       non_owning++;
   }*/
-  std::cout << "Pool Informations" << std::endl;
+  printStepHeader("Pool Informations");
   std::cout << "\tSolo facets = " << solo << std::endl;
   std::cout << "\tNon Owning facets = " << non_owning << std::endl;
 }

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <style>
+    body {
+      display: flex;
+      align-items: center;
+      flex-direction: row;
+      position: absolute;
+      margin: 0;
+      height: 100%;
+      width: 100%;
+    }
+
+    body>div {
+      width: 33vw;
+      min-height: 50vw;
+    }
+
+    img {
+      border: 1px solid black;
+    }
+
+    body>div>div {
+      flex: 0;
+    }
+
+    body>div>div:nth-child(2) {
+      flex: 1;
+      display: flex;
+    }
+
+    body>div>div:nth-child(2)>img {
+      flex: 1
+    }
+  </style>
+</head>
+
+<body>
+  <div>
+    <div>
+      <p>Top</p>
+    </div>
+    <div><img src="low_cat2_top.svg" alt="top vue" /></div>
+  </div>
+  <div>
+    <div>
+      <p>Front</p>
+    </div>
+    <div><img src="low_cat2_front.svg" alt="front vue" /></div>
+  </div>
+  <div>
+    <div>
+      <p>Right</p>
+    </div>
+    <div><img src="low_cat2_right.svg" alt="right vue" /></div>
+  </div>
+  <div>
+    <div>
+      <p>Bottom</p>
+    </div>
+    <div><img src="low_cat2_bottom.svg" alt="bottom vue" /></div>
+  </div>
+  <div>
+    <div>
+      <p>Back</p>
+    </div>
+    <div><img src="low_cat2_back.svg" alt="back vue" /></div>
+  </div>
+  <div>
+    <div>
+      <p>Left</p>
+    </div>
+    <div><img src="low_cat2_left.svg" alt="left vue" /></div>
+  </div>
+</body>
+
+</html>

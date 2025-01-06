@@ -3,10 +3,23 @@
 
 #include "kami/export/line_settings.hpp"
 #include <sstream>
+#include <string>
+#include <vector>
 
 namespace kami::out::svg {
 
 typedef std::stringstream stream;
+
+// ==========================================================================
+// Polyline
+// ==========================================================================
+
+/**
+ * @brief Add a polyline in the given SVG stream
+ */
+void polyline(stream &, const std::vector<double> &x,
+              const std::vector<double> &y, const LineStyle &line,
+              const std::string &fill_color, double opacity = 0.45);
 
 // ==========================================================================
 // Line
