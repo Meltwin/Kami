@@ -13,3 +13,5 @@ _deps
 .cache
 build/
 test/*.svg
+.idea
+cmake-build-debug
