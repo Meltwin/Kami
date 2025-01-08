@@ -1,116 +1,94 @@
-#include "kami/global/arguments.hpp"
-#include "kami/global/logging.hpp"
-#include "kami/mesh/linked_poly.hpp"
-#include "kami/mesh/linked_pool.hpp"
-#include "microstl/microstl.hpp"
-#include <chrono>
-#include <cstring>
-#include <fstream>
+#include "kami/app/main_ui.hpp"
+#include "kami/app/rendering.hpp"
+#include "kami/app/ui/HubUI.hpp"
+
+#include <imgui_internal.h>
 #include <iostream>
-#include <sstream>
-#include <string>
+#include <thread>
 
-microstl::Result loadSTL(microstl::MeshReaderHandler &handler,
-                         const std::string &file_path) {
-  handler.forceNormals = true;
-  handler.disableNormals = true;
-  return microstl::Reader::readStlFile(file_path, handler);
-}
+using namespace std::chrono_literals;
 
-int main(int argc, char **argv) {
-  // Parse arguments + help
-  kami::args::Args args = kami::args::getArguments(argc, argv);
-  kami::args::appHeader();
+// Main code
+int main(int, char **) {
+  SETUP_RENDER
+  ImGui::StyleColorsDark();
 
-  // If looking for help
-  if (args.askHelp) {
-    kami::args::printHelp();
-    return 0;
-  } else if (kami::args::verifyArgs(args)) {
-    return -1;
-  }
+  HubUI hub;
 
-  std::cout << args;
-
-  TIMED_UTILS;
-
-  // Load STL file
-  microstl::MeshReaderHandler handler;
-  TIMED_SECTION("Loading STL file", {
-    if (microstl::Result result = loadSTL(handler, args.input);
-        result != microstl::Result::Success) {
-      std::cout << "Couldn't load file (" << args.input
-                << "):" << microstl::getResultString(result) << std::endl;
-      return -1;
+  // Main loop
+  bool done = false;
+  while (!done) {
+    // Proces events
+    SDL_Event event;
+    bool idle = true;
+    while (SDL_PollEvent(&event)) {
+      idle = false;
+      ImGui_ImplSDL2_ProcessEvent(&event);
+      if (event.type == SDL_QUIT)
+        done = true;
+      if (event.type == SDL_WINDOWEVENT &&
+          event.window.event == SDL_WINDOWEVENT_CLOSE &&
+          event.window.windowID == SDL_GetWindowID(window))
+        done = true;
     }
-    std::cout << "\tLoaded " << handler.mesh.facets.size() << " facets"
-              << std::endl;
-  });
-
-  // Make the linking pool
-  auto pool = kami::LinkedMeshPool(handler.mesh);
-
-  // Informations for debug
-  printSectionHeader("Raw Mesh Properties (Link + Merge)");
-  pool.printInformations();
-  std::cout << pool << std::endl;
-
-  // Unfold the linked mesh
-  pool.unfold(args.max_depth);
-  printSectionHeader("Unfold Mesh Properties");
-  std::cout << pool << std::endl;
-
-  // Change the figure scale in the world
-  pool.scaleFigure(args.world_scaling);
-
-  // Slice the linked mesh in multiple parts
-  kami::MeshBinVector bins = pool.slice();
-
-  auto make_file_name = [&args](const std::string &suffix) {
-    std::stringstream ss;
-    ss << args.output << "_" << suffix << ".svg";
-    return ss.str();
-  };
-
-// Projections
-#define projectionStep(side, function)                                         \
-  {                                                                            \
-    std::stringstream ss;                                                      \
-    ss << "Export " << side;                                                   \
-    printStepHeader(ss.str());                                                 \
-    file =                                                                     \
-        std::ofstream(make_file_name(side), std::ios::out | std::ios::trunc);  \
-    if (file.is_open()) {                                                      \
-      file << pool.function(args);                                             \
-    }                                                                          \
-    file.close();                                                              \
-  }
-
-  printSectionHeader("Projections to SVG");
-  std::ofstream file;
-  projectionStep("top", projectOnTop);
-  projectionStep("bottom", projectOnBottom);
-  projectionStep("front", projectOnFront);
-  projectionStep("back", projectOnBack);
-  projectionStep("right", projectOnRight);
-  projectionStep("left", projectOnLeft);
-
-  // Extract pattern
-  printSectionHeader("Exporting to SVG");
-  for (auto &bin : bins) {
-    printStepHeader("Export bin");
-    std::cout << bin << std::endl;
-    std::stringstream ss;
-    ss << args.output << "_" << bin.id + 1 << ".svg";
-
-    std::ofstream file(ss.str(), std::ios::out | std::ios::trunc);
-    if (file.is_open()) {
-      file << pool.getAsSVGString(bin, args);
+    if (idle) {
     }
-    file.close();
+    if (SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED) {
+      SDL_Delay(10);
+      continue;
+    }
+
+    // Call UI components
+    START_FRAME;
+    ImVec2 winsize;
+
+    // Menu Bar
+    {
+      set_main_menu_style();
+      ImGui::BeginMainMenuBar();
+      ImGui::SetWindowSize(ImVec2(context->io.DisplaySize.x, 70));
+      hub.render_main_menu();
+      winsize = ImGui::GetWindowSize();
+      APPLY_STYLE
+      ImGui::EndMainMenuBar();
+    }
+
+    // Main area
+    const float MA_width = MA_WIDTH * context->io.DisplaySize.x - BORDER_WIDTH;
+    const auto MA_pos = ImVec4(0, winsize.y + BORDER_WIDTH, MA_width,
+                               context->io.DisplaySize.y);
+    {
+      set_MA_style();
+      ImGui::Begin("Main area", nullptr,
+                   LAYOUT_FLAGS | ImGuiWindowFlags_NoScrollbar);
+      ImGui::SetWindowSize(
+          ImVec2(MA_pos.z, MA_pos.w - winsize.y - BORDER_WIDTH));
+      ImGui::SetWindowPos(ImVec2(MA_pos.x, MA_pos.y));
+      APPLY_STYLE
+      hub.MA_render(MA_pos);
+      ImGui::End();
+    }
+
+    // Second area
+    {
+      const auto SA_pos = ImVec4(MA_pos.z + BORDER_WIDTH, MA_pos.y,
+                                 context->io.DisplaySize.x, MA_pos.w);
+      set_SA_style();
+      ImGui::Begin("Second area", nullptr, LAYOUT_FLAGS);
+      ImGui::SetWindowSize(
+          ImVec2(SA_WIDTH * context->io.DisplaySize.x,
+                 context->io.DisplaySize.y - winsize.y - BORDER_WIDTH));
+      ImGui::SetWindowPos(ImVec2(SA_pos.x, SA_pos.y));
+      APPLY_STYLE
+      hub.SA_render(SA_pos);
+      ImGui::End();
+    }
+
+    RENDER_FRAME
+    std::this_thread::sleep_for((idle) ? 100ms : 10ms);
   }
 
-  std::cout << std::endl << std::endl;
-
+  // Cleanup
+  cleanup_rendering(context, window);
   return 0;
 }
