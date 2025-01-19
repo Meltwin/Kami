@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+add_compile_options(-g -O3)
+
 # =============================================================================
 # Libraries
 # =============================================================================
@@ -16,7 +18,7 @@ set(OpenGL_GL_PREFERENCE "GLVND")
 find_package(OpenGL REQUIRED)
 include_directories(${OPENGL_INCLUDE_DIRS})
 
-find_package( Eigen3 REQUIRED )
+find_package(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIR})
 
 include_directories("libs/imgui")
@@ -27,7 +29,7 @@ set(IMGUI_SRC
         "libs/imgui/backends/imgui_impl_opengl2.cpp"
 )
 
-message("${SDL2_LIBRAIRIES}")
+include_directories("${CMAKE_CURRENT_BINARY_DIR}/im2cpp/")
 
 # =============================================================================
 # App

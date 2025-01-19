@@ -22,6 +22,7 @@ struct BaseAppUI {
    * Render the main menu of the application
    */
 public:
+  virtual ~BaseAppUI() = default;
   void render_main_menu();
 
 protected:

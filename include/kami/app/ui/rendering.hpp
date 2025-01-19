@@ -20,9 +20,10 @@
 struct AppContext {
   SDL_GLContext context;
   ImGuiIO &io;
+  Logger logger;
 
   explicit AppContext(const SDL_GLContext &_context, ImGuiIO &_io)
-      : context(_context), io(_io) {}
+      : context(_context), io(_io), logger("Kami app") {}
 
   typedef std::shared_ptr<AppContext> SharedPtr;
 };
@@ -33,11 +34,11 @@ struct AppContext {
  ==============================================================================
  */
 
-inline void setup_rendering() {
+inline void setup_rendering(const Logger &logger) {
   // Setup SDL
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) !=
       0) {
-    printf("Error: %s\n", SDL_GetError());
+    logger.error("Error: %s\n", SDL_GetError());
     exit(-1);
   }
 
@@ -81,16 +82,18 @@ inline AppContext::SharedPtr create_context(SDL_Window *window) {
 }
 
 #define SETUP_RENDER                                                           \
-  setup_rendering();                                                           \
+  logger.info("Setuping rendering with SDL");                                  \
+  setup_rendering(logger);                                                     \
   const auto window = create_window();                                         \
   if (window == nullptr) {                                                     \
-    printf("Error: SDL_CreateWindow(): %s\n", SDL_GetError());                 \
+    logger.error("Error: SDL_CreateWindow(): %s\n", SDL_GetError());           \
     return -1;                                                                 \
   }                                                                            \
   const AppContext::SharedPtr context = create_context(window);
 
 inline void cleanup_rendering(const AppContext::SharedPtr &app_context,
                               SDL_Window *window) {
+  app_context->logger.info("Cleaning up rendering");
   ImGui_ImplOpenGL2_Shutdown();
   ImGui_ImplSDL2_Shutdown();
   ImGui::DestroyContext();
