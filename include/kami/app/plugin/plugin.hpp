@@ -28,7 +28,7 @@ struct InternalPluginDescriptor : PluginDescriptor {
   typedef std::shared_ptr<InternalPluginDescriptor> SharedPtr;
 
   InternalPluginDescriptor(const char *, const char *, PluginType);
-  virtual std::shared_ptr<Plugin> instantiate() = 0;
+  virtual std::shared_ptr<Plugin> instantiate() { return nullptr; }
 };
 
 typedef std::vector<Plugin::SharedPtr> PluginList;

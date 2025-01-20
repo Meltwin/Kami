@@ -1,4 +1,4 @@
-#include "kami/app/plugin/plugin_manager.hpp"
+#include "kami/app/plugin/plugin_manager_impl.hpp"
 #include "kami/app/ui/main_ui.hpp"
 #include "kami/app/ui/rendering.hpp"
 #include "kami/res/kami_icon.hpp"

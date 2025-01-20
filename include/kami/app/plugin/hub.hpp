@@ -5,14 +5,15 @@
 #ifndef HUB_UI_HPP
 #define HUB_UI_HPP
 
+#include "iplugin_manager.hpp"
+
 #include <kami/app/plugin/plugin.hpp>
 #include <kami/app/ui/BaseAppUI.hpp>
 #include <utility>
 
 struct HubUI final : BaseAppUI {
   HubUI() = default;
-  explicit HubUI(std::weak_ptr<PluginDescriptorList> l)
-      : applications(std::move(l)) {}
+  explicit HubUI(IPluginManager *pm) : plugin_manager(pm) {}
 
   void MM_render_file() override;
   void MM_render_edit() override;
@@ -20,14 +21,14 @@ struct HubUI final : BaseAppUI {
   void SA_custom_render() override;
 
 private:
-  std::weak_ptr<PluginDescriptorList> applications;
+  IPluginManager *plugin_manager = nullptr;
 };
 
 struct Hub final : Plugin {
   std::shared_ptr<BaseAppUI> gui() override { return _gui; }
 
-  void setup_app_list(const std::weak_ptr<PluginDescriptorList> &list) {
-    _gui = std::make_shared<HubUI>(list);
+  void setup_app_list(IPluginManager *pm) {
+    _gui = std::make_shared<HubUI>(pm);
   }
 
 private:
